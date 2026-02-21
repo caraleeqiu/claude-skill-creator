@@ -6,8 +6,10 @@
 
 ## 功能特性
 
-### 1. Skill 市场 (50+ 官方 Skills)
-- **官方 Skills**: Anthropic, Vercel, Cloudflare, Stripe, HuggingFace, Google Labs, Expo 等
+### 1. Skill 市场 (160+ 官方/社区 Skills)
+- **官方 Skills**: Anthropic, Vercel, Cloudflare, OpenAI, HuggingFace, Google Labs, Trail of Bits, WordPress, HashiCorp 等
+- **科学/AI**: K-Dense-AI 科学研究 (9k⭐), Orchestra AI 研究 (3.7k⭐)
+- **社区精选**: obra/superpowers, wondelai/skills, marketingskills 等 100 星以上高质量 Skills
 - **分类浏览**: 开发工具、自动化、内容创作、生产力、数据处理、设计、通讯
 - **一键安装**: 复制命令到终端执行即可
 
@@ -75,14 +77,36 @@ npm run dev
 | 组织 | Skills 数量 | 说明 |
 |------|-------------|------|
 | [Anthropic](https://github.com/anthropics/skills) | 16 | 官方 Skills (docx, pdf, xlsx, mcp-builder 等) |
-| [Vercel](https://github.com/vercel-labs/agent-skills) | 8 | React/Next.js 最佳实践 |
-| [Cloudflare](https://github.com/cloudflare/skills) | 7 | Workers, Wrangler, Durable Objects |
-| [HuggingFace](https://github.com/huggingface/skills) | 8 | ML/AI 模型训练和部署 |
+| [Vercel](https://github.com/vercel-labs/agent-skills) | 9 | React/Next.js 最佳实践, 缓存策略 |
+| [Cloudflare](https://github.com/cloudflare/skills) | 6 | Workers, Wrangler, AI Agents, MCP Server |
+| [HuggingFace](https://github.com/huggingface/skills) | 9 | ML/AI 模型训练、评估、数据集管理 |
 | [Stripe](https://github.com/stripe/ai) | 2 | 支付集成最佳实践 |
 | [Supabase](https://github.com/supabase/agent-skills) | 1 | PostgreSQL 最佳实践 |
-| [Google Labs](https://github.com/google-labs-code/stitch-skills) | 6 | UI/设计组件 |
+| [Google Labs](https://github.com/google-labs-code/stitch-skills) | 7 | UI/设计组件, shadcn/ui |
 | [Expo](https://github.com/expo/skills) | 3 | React Native 移动开发 |
-| [Trail of Bits](https://github.com/trailofbits/skills) | 20+ | 安全审计和分析 |
+| [Trail of Bits](https://github.com/trailofbits/skills) | 11 | 安全审计、静态分析、智能合约 |
+| [Sentry](https://github.com/getsentry/skills) | 5 | 代码审查、PR、Bug 检测 |
+| [OpenAI](https://github.com/openai/skills) | 10 | Playwright, 安全审计, 部署 |
+| [HashiCorp](https://github.com/hashicorp/agent-skills) | 3 | Terraform 代码生成、模块开发 |
+| [CallStack](https://github.com/callstackincubator/agent-skills) | 3 | React Native 最佳实践 |
+| [fal.ai](https://github.com/fal-ai-community/skills) | 4 | AI 图像/视频生成 |
+| [Sanity](https://github.com/sanity-io/agent-toolkit) | 2 | CMS 内容建模 |
+| [Neon](https://github.com/neondatabase/agent-skills) | 1 | Serverless Postgres |
+| [Remotion](https://github.com/remotion-dev/skills) | 1 | React 视频创作 |
+| [Replicate](https://github.com/replicate/skills) | 1 | AI 模型运行 |
+| [Tinybird](https://github.com/tinybirdco/tinybird-agent-skills) | 1 | 实时数据分析 |
+| [Firecrawl](https://github.com/firecrawl/cli) | 1 | Web 爬虫 |
+| [obra/superpowers](https://github.com/obra/superpowers) | 7 | TDD, 调试, 并行代理 |
+| [wondelai/skills](https://github.com/wondelai/skills) | 10 | 商业框架 (JTBD, 精益创业) |
+| [zxkane/aws-skills](https://github.com/zxkane/aws-skills) | 3 | AWS CDK, Serverless |
+| [levnikolaevich](https://github.com/levnikolaevich/claude-code-skills) | 6 | 全流程开发工作流 |
+| [ComposioHQ](https://github.com/ComposioHQ/awesome-claude-skills) | 4 | 数据分析, 内容创作 |
+| [K-Dense-AI](https://github.com/K-Dense-AI/claude-scientific-skills) | 4 | 生物/化学信息学, 临床研究 |
+| [Orchestra-Research](https://github.com/Orchestra-Research/AI-research-SKILLs) | 7 | AI 模型训练, RAG, 推理 |
+| [WordPress](https://github.com/WordPress/agent-skills) | 4 | Gutenberg, 插件开发 |
+| [Apple HIG](https://github.com/raintree-technology/apple-hig-skills) | 4 | iOS/macOS 设计指南 |
+| [Marketing Skills](https://github.com/coreyhaines31/marketingskills) | 6 | SEO, 文案, CRO |
+| 社区精选 | 10+ | iOS, Java, OWASP 等 |
 
 ## 技术栈
 
@@ -103,6 +127,18 @@ npm run dev
 | `/api/download` | POST | 生成 ZIP 下载 |
 
 ## 更新日志
+
+### v0.4.0
+- 扩充默认 skills 到 130+ 个官方/社区 skills
+- 新增官方: Trail of Bits (11), Sentry (5), OpenAI (10), HashiCorp (3), CallStack (3), fal.ai (4)
+- 新增官方: Sanity CMS, Neon, Remotion, Replicate, Tinybird, Firecrawl
+- 新增社区: obra/superpowers (7) - TDD, 调试, 并行代理
+- 新增社区: wondelai/skills (10) - 商业框架 (JTBD, 精益创业, 蓝海战略)
+- 新增社区: zxkane/aws-skills (3) - AWS CDK, Serverless
+- 新增社区: levnikolaevich (6) - 全流程开发工作流, 代码质量检查
+- 新增社区: ComposioHQ (4) - 数据分析, D3 可视化
+- 新增社区: iOS 开发指南, Java 规则, Skills 管理器
+- 补全: Cloudflare, HuggingFace, Google Labs, Vercel 遗漏的 skills
 
 ### v0.3.0
 - 扩充默认 skills 到 50+ 个官方 skills

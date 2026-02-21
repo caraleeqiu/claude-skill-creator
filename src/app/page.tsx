@@ -397,11 +397,6 @@ function SkillCard({
   );
 }
 
-// 验证 GitHub Token 格式
-function isValidGitHubToken(token: string): boolean {
-  return /^(ghp_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9]{22,}_[a-zA-Z0-9]{59,})$/.test(token);
-}
-
 function SkillCreator({
   onClose,
   githubUser,
@@ -423,7 +418,7 @@ function SkillCreator({
     tags: string[];
     validation: { valid: boolean; errors: string[] };
   } | null>(null);
-  const [manualToken, setManualToken] = useState("");
+  // 移除了手动 Token 输入，只支持 OAuth 登录
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
     success: boolean;
@@ -439,8 +434,8 @@ function SkillCreator({
   } | null>(null);
   const [scanning, setScanning] = useState(false);
 
-  // 获取实际使用的 token
-  const activeToken = githubUser?.token || manualToken;
+  // 获取实际使用的 token（只支持 OAuth 登录）
+  const activeToken = githubUser?.token;
 
   async function handleGenerate() {
     if (!description.trim()) return;
@@ -809,49 +804,17 @@ function SkillCreator({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
-                      <p className="text-sm text-blue-600 mb-2">
-                        <strong>方式 1:</strong> 使用 GitHub 登录（推荐）
-                      </p>
-                      <a
-                        href="/api/auth/github"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
-                      >
-                        <Github className="w-4 h-4" />
-                        GitHub 登录
-                      </a>
-                    </div>
-                    <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
-                      <p className="text-sm text-gray-600 mb-2">
-                        <strong>方式 2:</strong> 手动输入 Token
-                      </p>
-                      <input
-                        type="password"
-                        value={manualToken}
-                        onChange={(e) => {
-                          const value = e.target.value.trim();
-                          setManualToken(value);
-                        }}
-                        placeholder="ghp_xxxxxxxxxxxxx 或 github_pat_xxxxx"
-                        className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-700 font-mono text-sm ${
-                          manualToken && !isValidGitHubToken(manualToken)
-                            ? "border-red-500 focus:ring-red-500"
-                            : "border-gray-300 dark:border-gray-600"
-                        }`}
-                      />
-                      {manualToken && !isValidGitHubToken(manualToken) && (
-                        <p className="text-xs text-red-500 mt-1">Token 格式不正确，应以 ghp_ 或 github_pat_ 开头</p>
-                      )}
-                      <a
-                        href="https://github.com/settings/tokens/new?scopes=repo&description=Claude%20Skill%20Creator"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:underline mt-1 inline-block"
-                      >
-                        获取 Token
-                      </a>
-                    </div>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
+                    <p className="text-sm text-blue-600 mb-3">
+                      请先登录 GitHub，将自动创建仓库到你的账号
+                    </p>
+                    <a
+                      href="/api/auth/github"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 font-medium"
+                    >
+                      <Github className="w-5 h-5" />
+                      使用 GitHub 登录
+                    </a>
                   </div>
                 )}
 
@@ -875,7 +838,7 @@ function SkillCreator({
                   </button>
                   <button
                     onClick={handleUpload}
-                    disabled={!activeToken || (manualToken && !isValidGitHubToken(manualToken)) || uploading}
+                    disabled={!activeToken || uploading}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl font-medium transition-all"
                   >
                     {uploading ? (
