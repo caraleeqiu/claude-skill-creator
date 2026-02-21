@@ -1,8 +1,13 @@
 # Claude Skill Creator
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/caraleeqiu/claude-skill-creator)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 > 发现、安装、创建 Claude Code Skills 的一站式平台
 
-**线上地址**: https://claude-skill-creator.vercel.app
+**在线体验**: https://claude-skill-creator.vercel.app
+
+![screenshot](https://img.shields.io/badge/Skills-160%2B-blue) ![screenshot](https://img.shields.io/badge/平台-小红书%20%7C%20抖音%20%7C%20B站%20%7C%20知乎-red)
 
 ## 功能特性
 
@@ -15,8 +20,11 @@
 
 ### 2. AI 创建 Skill
 - 自然语言描述，自动生成 Skill
+- **从链接生成**: 支持 Twitter/X、Reddit、GitHub、小红书、抖音、B站、知乎、微博、微信公众号
+- **文档上传**: 支持 TXT、Markdown、PDF、JSON、YAML
 - 实时预览和验证
 - 安全扫描（检测恶意代码）
+- 一键转换 Claude ↔ OpenClaw 格式
 
 ### 3. 多种安装方式
 - **复制安装命令**: 在终端执行 `curl` 命令下载
@@ -127,6 +135,14 @@ npm run dev
 | `/api/download` | POST | 生成 ZIP 下载 |
 
 ## 更新日志
+
+### v0.5.0 (最新)
+- **架构重构**: 组件化设计，Zustand 状态管理
+- **安全增强**: httpOnly Cookie 存储 Token
+- **链接抓取**: 支持 9 大平台 (Twitter, Reddit, GitHub, 小红书, 抖音, B站, 知乎, 微博, 公众号)
+- **文档上传**: 拖拽上传 TXT/MD/PDF/JSON/YAML
+- **缓存优化**: HTTP 缓存头 + localStorage 持久化
+- **场景搜索**: 17 个使用场景快速筛选
 
 ### v0.4.0
 - 扩充默认 skills 到 130+ 个官方/社区 skills
