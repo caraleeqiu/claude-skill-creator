@@ -2,12 +2,30 @@
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/caraleeqiu/claude-skill-creator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Skills](https://img.shields.io/badge/Skills-160%2B-blue)
+![Platforms](https://img.shields.io/badge/平台-小红书%20%7C%20抖音%20%7C%20B站%20%7C%20知乎-red)
+
+🚀 **Claude Code 的 App Store** | **The App Store for Claude Code Skills**
 
 > 发现、安装、创建 Claude Code Skills 的一站式平台
+> Discover, install, and create Claude Code Skills in one place
 
-**在线体验**: https://claude-skill-creator.vercel.app
+**在线体验 / Live Demo**: https://claude-skill-creator.vercel.app
 
-![screenshot](https://img.shields.io/badge/Skills-160%2B-blue) ![screenshot](https://img.shields.io/badge/平台-小红书%20%7C%20抖音%20%7C%20B站%20%7C%20知乎-red)
+---
+
+## ✨ 亮点 / Highlights
+
+| 功能 | Feature | 说明 |
+|------|---------|------|
+| 🛒 **Skill 市场** | Skill Marketplace | 160+ 官方/社区 Skills，一键安装 |
+| 🤖 **AI 生成** | AI Generation | 自然语言描述 → 自动生成 Skill |
+| 🔗 **链接抓取** | URL Fetching | 支持 Twitter, Reddit, GitHub, 小红书, 抖音, B站, 知乎, 微博, 公众号 |
+| 📄 **文档上传** | File Upload | 拖拽上传 TXT, Markdown, PDF, JSON, YAML |
+| 🔒 **安全扫描** | Security Scan | 检测恶意代码、凭证窃取、prompt 注入 |
+| 🔄 **格式转换** | Format Convert | Claude Skill ↔ OpenClaw Plugin 一键互转 |
+
+---
 
 ## 功能特性
 
