@@ -304,10 +304,14 @@ export function StepInput({
             <label className="block text-sm font-medium mb-2">
               <Link className="w-4 h-4 inline mr-1" />
               从链接获取
-              <span className="text-xs text-gray-500 ml-2">
-                支持 Twitter/X、Reddit、GitHub、网页
-              </span>
             </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {["Twitter/X", "Reddit", "GitHub", "小红书", "抖音", "B站", "知乎", "微博", "公众号"].map((p) => (
+                <span key={p} className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
+                  {p}
+                </span>
+              ))}
+            </div>
             <div className="flex gap-2">
               <input
                 type="url"
