@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { crawlGitHubSkills } from "@/lib/github-crawler";
+import { DEFAULT_SKILLS } from "@/lib/default-skills";
+import type { Skill } from "@/types/skill";
 
 // Cache skills for 1 hour
-let cachedSkills: Awaited<ReturnType<typeof crawlGitHubSkills>> | null = null;
+let cachedSkills: Skill[] | null = null;
 let cacheTime = 0;
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+// 带超时的 Promise
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), ms)
+    ),
+  ]);
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,25 +24,37 @@ export async function GET(request: Request) {
   const search = searchParams.get("search");
   const refresh = searchParams.get("refresh") === "true";
 
-  // Check cache
-  if (!refresh && cachedSkills && Date.now() - cacheTime < CACHE_DURATION) {
+  // Check cache first
+  if (!refresh && cachedSkills && cachedSkills.length > 0 && Date.now() - cacheTime < CACHE_DURATION) {
     return NextResponse.json(filterSkills(cachedSkills, category, search));
   }
 
   try {
     const token = process.env.GITHUB_TOKEN;
-    cachedSkills = await crawlGitHubSkills(token);
-    cacheTime = Date.now();
 
-    return NextResponse.json(filterSkills(cachedSkills, category, search));
+    // 设置 8 秒超时 (Vercel 免费版限制 10 秒)
+    const skills = await withTimeout(crawlGitHubSkills(token), 8000);
+
+    if (skills && skills.length > 0) {
+      cachedSkills = skills;
+      cacheTime = Date.now();
+      return NextResponse.json(filterSkills(skills, category, search));
+    }
   } catch (error) {
-    console.error("Error fetching skills:", error);
-    return NextResponse.json({ error: "Failed to fetch skills" }, { status: 500 });
+    console.error("Error fetching skills (using defaults):", error);
   }
+
+  // 使用默认数据
+  if (!cachedSkills || cachedSkills.length === 0) {
+    cachedSkills = DEFAULT_SKILLS;
+    cacheTime = Date.now();
+  }
+
+  return NextResponse.json(filterSkills(cachedSkills, category, search));
 }
 
 function filterSkills(
-  skills: Awaited<ReturnType<typeof crawlGitHubSkills>>,
+  skills: Skill[],
   category: string | null,
   search: string | null
 ) {
