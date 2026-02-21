@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Search, Download, Plus, Star, ExternalLink, Copy, Check,
+  Search, Download, Star, ExternalLink, Copy, Check,
   Code, Zap, FileText, Rocket, Database, Palette, MessageSquare,
-  Box, Sparkles, Upload, RefreshCw, X, Github, Terminal
+  Box, Sparkles, Upload, RefreshCw, X, Github, Terminal,
+  Shield, ShieldAlert, ShieldCheck, AlertTriangle, FileDown, LogOut
 } from "lucide-react";
 import type { Skill } from "@/types/skill";
 import { SKILL_CATEGORIES } from "@/types/skill";
@@ -12,6 +13,13 @@ import { SKILL_CATEGORIES } from "@/types/skill";
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Code, Zap, FileText, Rocket, Database, Palette, MessageSquare, Box,
 };
+
+// GitHub 用户状态
+interface GithubUser {
+  token: string;
+  login: string;
+  avatar: string;
+}
 
 export default function Home() {
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -21,6 +29,25 @@ export default function Home() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [githubUser, setGithubUser] = useState<GithubUser | null>(null);
+
+  // 检查 URL hash 中的 OAuth 回调
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash;
+      if (hash.includes("token=")) {
+        const params = new URLSearchParams(hash.slice(1));
+        const token = params.get("token");
+        const login = params.get("user");
+        const avatar = params.get("avatar");
+        if (token && login) {
+          setGithubUser({ token, login, avatar: avatar || "" });
+          // 清除 URL hash
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }
+    }
+  }, []);
 
   const fetchSkills = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
@@ -55,6 +82,10 @@ export default function Home() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  function handleLogout() {
+    setGithubUser(null);
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/30 to-amber-50/50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Header */}
@@ -73,6 +104,26 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* GitHub 登录状态 */}
+              {githubUser ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl">
+                  {githubUser.avatar && (
+                    <img src={githubUser.avatar} alt="" className="w-6 h-6 rounded-full" />
+                  )}
+                  <span className="text-sm font-medium">{githubUser.login}</span>
+                  <button onClick={handleLogout} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
+                    <LogOut className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href="/api/auth/github"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Github className="w-4 h-4" />
+                  <span className="text-sm">登录</span>
+                </a>
+              )}
               <button
                 onClick={() => fetchSkills(true)}
                 disabled={refreshing}
@@ -143,7 +194,12 @@ export default function Home() {
         </div>
 
         {/* Skill Creator Panel */}
-        {showCreator && <SkillCreator onClose={() => setShowCreator(false)} />}
+        {showCreator && (
+          <SkillCreator
+            onClose={() => setShowCreator(false)}
+            githubUser={githubUser}
+          />
+        )}
 
         {/* Skills Grid */}
         {loading ? (
@@ -254,7 +310,13 @@ function SkillCard({
   );
 }
 
-function SkillCreator({ onClose }: { onClose: () => void }) {
+function SkillCreator({
+  onClose,
+  githubUser,
+}: {
+  onClose: () => void;
+  githubUser: GithubUser | null;
+}) {
   const [step, setStep] = useState<"input" | "preview" | "upload">("input");
   const [description, setDescription] = useState("");
   const [name, setName] = useState("");
@@ -267,7 +329,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
     tags: string[];
     validation: { valid: boolean; errors: string[] };
   } | null>(null);
-  const [githubToken, setGithubToken] = useState("");
+  const [manualToken, setManualToken] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
     success: boolean;
@@ -275,11 +337,23 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
     error?: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [securityScan, setSecurityScan] = useState<{
+    safe: boolean;
+    risk: string;
+    warnings: string[];
+    blocked: boolean;
+  } | null>(null);
+  const [scanning, setScanning] = useState(false);
+
+  // 获取实际使用的 token
+  const activeToken = githubUser?.token || manualToken;
 
   async function handleGenerate() {
     if (!description.trim()) return;
 
     setGenerating(true);
+    setSecurityScan(null);
+
     try {
       const res = await fetch("/api/skills/generate", {
         method: "POST",
@@ -292,16 +366,34 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
       } else {
         setGenerated(data);
         setName(data.name);
+        // 安全扫描
+        await runSecurityScan(data.skillMd);
         setStep("preview");
       }
-    } catch (e) {
+    } catch {
       alert("生成失败，请重试");
     }
     setGenerating(false);
   }
 
+  async function runSecurityScan(content: string) {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/skills/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json();
+      setSecurityScan(data);
+    } catch {
+      console.error("Security scan failed");
+    }
+    setScanning(false);
+  }
+
   async function handleUpload() {
-    if (!generated || !githubToken) return;
+    if (!generated || !activeToken) return;
 
     setUploading(true);
     try {
@@ -309,7 +401,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token: githubToken,
+          token: activeToken,
           repoName: generated.name,
           skillMd: generated.skillMd,
           readme: generated.readme,
@@ -318,10 +410,43 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
       });
       const data = await res.json();
       setUploadResult(data);
-    } catch (e) {
+    } catch {
       setUploadResult({ success: false, error: "上传失败" });
     }
     setUploading(false);
+  }
+
+  async function handleDownloadZip() {
+    if (!generated) return;
+
+    try {
+      const res = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: generated.name,
+          skillMd: generated.skillMd,
+          readme: generated.readme,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.content) {
+        // 创建下载链接
+        const blob = new Blob(
+          [Uint8Array.from(atob(data.content), c => c.charCodeAt(0))],
+          { type: "application/zip" }
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = data.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      alert("下载失败");
+    }
   }
 
   async function copyToClipboard(text: string) {
@@ -394,7 +519,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Skill 名称 (可选，会自动生成)</label>
+              <label className="block text-sm font-medium mb-2">Skill 名称 (可选)</label>
               <input
                 type="text"
                 value={name}
@@ -426,6 +551,47 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
 
         {step === "preview" && generated && (
           <div className="space-y-4">
+            {/* 安全扫描结果 */}
+            {scanning ? (
+              <div className="p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center gap-3">
+                <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
+                <span className="text-blue-600">正在进行安全扫描...</span>
+              </div>
+            ) : securityScan && (
+              <div className={`p-4 rounded-xl border ${
+                securityScan.blocked
+                  ? "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30"
+                  : securityScan.safe
+                  ? "bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30"
+                  : "bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/30"
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {securityScan.blocked ? (
+                    <ShieldAlert className="w-5 h-5 text-red-500" />
+                  ) : securityScan.safe ? (
+                    <ShieldCheck className="w-5 h-5 text-green-500" />
+                  ) : (
+                    <Shield className="w-5 h-5 text-yellow-500" />
+                  )}
+                  <span className={`font-medium ${
+                    securityScan.blocked ? "text-red-600" : securityScan.safe ? "text-green-600" : "text-yellow-600"
+                  }`}>
+                    {securityScan.blocked ? "安全风险: 已阻止" : securityScan.safe ? "安全扫描: 通过" : `安全风险: ${securityScan.risk}`}
+                  </span>
+                </div>
+                {securityScan.warnings.length > 0 && (
+                  <ul className="text-sm space-y-1">
+                    {securityScan.warnings.map((w, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {/* Validation */}
             {!generated.validation.valid && (
               <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl">
@@ -454,7 +620,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
                 </pre>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">安装命令</label>
+                <label className="block text-sm font-medium mb-2">安装方式</label>
                 <div className="p-4 bg-gray-900 text-green-400 rounded-xl text-sm font-mono mb-4">
                   <p className="text-gray-500 mb-2"># 本地安装</p>
                   <p className="break-all">mkdir -p ~/.claude/skills/{generated.name}</p>
@@ -473,7 +639,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setStep("input")}
                 className="px-6 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -481,15 +647,23 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
                 返回修改
               </button>
               <button
+                onClick={handleDownloadZip}
+                className="flex items-center gap-2 px-6 py-3 border-2 border-green-500 text-green-600 rounded-xl hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors font-medium"
+              >
+                <FileDown className="w-5 h-5" />
+                下载 ZIP
+              </button>
+              <button
                 onClick={() => copyToClipboard(generated.skillMd)}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border-2 border-orange-500 text-orange-500 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors font-medium"
+                className="flex items-center gap-2 px-6 py-3 border-2 border-orange-500 text-orange-500 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors font-medium"
               >
                 <Terminal className="w-5 h-5" />
-                仅复制本地使用
+                复制内容
               </button>
               <button
                 onClick={() => setStep("upload")}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl font-medium transition-all"
+                disabled={securityScan?.blocked}
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl font-medium transition-all"
               >
                 <Upload className="w-5 h-5" />
                 上传到 GitHub
@@ -530,31 +704,51 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
               </div>
             ) : (
               <>
-                <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
-                  <p className="text-sm text-blue-600">
-                    需要 GitHub Personal Access Token 来创建仓库。
-                    <a
-                      href="https://github.com/settings/tokens/new?scopes=repo&description=Claude%20Skill%20Creator"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-1 underline"
-                    >
-                      点击获取 Token
-                    </a>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">GitHub Token</label>
-                  <input
-                    type="password"
-                    value={githubToken}
-                    onChange={(e) => setGithubToken(e.target.value)}
-                    placeholder="ghp_xxxxxxxxxxxxx"
-                    className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 focus:border-orange-500 focus:ring-0 font-mono"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Token 仅用于本次上传，不会保存</p>
-                </div>
+                {/* 已登录 GitHub */}
+                {githubUser ? (
+                  <div className="p-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl flex items-center gap-3">
+                    <img src={githubUser.avatar} alt="" className="w-10 h-10 rounded-full" />
+                    <div>
+                      <p className="font-medium text-green-600">已登录: {githubUser.login}</p>
+                      <p className="text-sm text-green-500">将上传到你的 GitHub 账号</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
+                      <p className="text-sm text-blue-600 mb-2">
+                        <strong>方式 1:</strong> 使用 GitHub 登录（推荐）
+                      </p>
+                      <a
+                        href="/api/auth/github"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                      >
+                        <Github className="w-4 h-4" />
+                        GitHub 登录
+                      </a>
+                    </div>
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl">
+                      <p className="text-sm text-gray-600 mb-2">
+                        <strong>方式 2:</strong> 手动输入 Token
+                      </p>
+                      <input
+                        type="password"
+                        value={manualToken}
+                        onChange={(e) => setManualToken(e.target.value)}
+                        placeholder="ghp_xxxxxxxxxxxxx"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-mono text-sm"
+                      />
+                      <a
+                        href="https://github.com/settings/tokens/new?scopes=repo&description=Claude%20Skill%20Creator"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:underline mt-1 inline-block"
+                      >
+                        获取 Token
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
                   <p className="text-sm mb-2">将创建仓库: <strong>{generated.name}</strong></p>
@@ -576,7 +770,7 @@ function SkillCreator({ onClose }: { onClose: () => void }) {
                   </button>
                   <button
                     onClick={handleUpload}
-                    disabled={!githubToken || uploading}
+                    disabled={!activeToken || uploading}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl font-medium transition-all"
                   >
                     {uploading ? (

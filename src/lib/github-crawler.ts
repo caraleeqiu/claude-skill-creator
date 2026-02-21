@@ -31,6 +31,14 @@ const SKILL_REPOS = [
   "libukai/awesome-agent-skills",
 ];
 
+// Awesome lists to parse for more skills
+const AWESOME_LISTS = [
+  "travisvn/awesome-claude-skills",
+  "ComposioHQ/awesome-claude-skills",
+  "VoltAgent/awesome-agent-skills",
+  "libukai/awesome-agent-skills",
+];
+
 // Rate limit handler
 async function withRateLimit<T>(fn: () => Promise<T>, retries = 3): Promise<T | null> {
   for (let i = 0; i < retries; i++) {
@@ -151,11 +159,103 @@ export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
     }
   }
 
+  // 4. Parse awesome lists for more skills
+  for (const listRepo of AWESOME_LISTS) {
+    const [owner, repo] = listRepo.split("/");
+
+    // Get README content
+    const readmeContent = await withRateLimit(async () => {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path: "README.md",
+      });
+      if ("content" in data) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      }
+      return null;
+    });
+
+    if (readmeContent) {
+      // Extract GitHub repo links from README
+      const repoLinks = extractGitHubLinks(readmeContent);
+
+      for (const repoPath of repoLinks) {
+        if (seen.has(repoPath)) continue;
+
+        const [repoOwner, repoName] = repoPath.split("/");
+        const result = await withRateLimit(async () => {
+          const { data } = await octokit.repos.get({ owner: repoOwner, repo: repoName });
+          return data;
+        });
+
+        if (result) {
+          seen.add(repoPath);
+          const skill = await extractSkillFromRepo(octokit, {
+            full_name: result.full_name,
+            name: result.name,
+            description: result.description,
+            html_url: result.html_url,
+            stargazers_count: result.stargazers_count,
+            owner: { login: result.owner.login },
+            created_at: result.created_at ?? new Date().toISOString(),
+            updated_at: result.updated_at ?? new Date().toISOString(),
+            topics: result.topics,
+          });
+          if (skill) skills.push(skill);
+        }
+      }
+    }
+  }
+
   // Sort by stars
   skills.sort((a, b) => b.stars - a.stars);
 
   console.log(`Crawl complete. Found ${skills.length} skills.`);
   return skills;
+}
+
+// Extract GitHub repository links from markdown content
+function extractGitHubLinks(content: string): string[] {
+  const links: string[] = [];
+
+  // Match GitHub repo URLs
+  const patterns = [
+    /https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)/g,
+    /\[([^\]]+)\]\(https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)[^)]*\)/g,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(content)) !== null) {
+      let owner: string, repo: string;
+
+      if (match.length === 3) {
+        // Direct URL match
+        [, owner, repo] = match;
+      } else if (match.length === 4) {
+        // Markdown link match
+        [, , owner, repo] = match;
+      } else {
+        continue;
+      }
+
+      // Clean up repo name
+      repo = repo.replace(/\.git$/, "").replace(/[#?].*$/, "");
+
+      // Skip certain paths that aren't repos
+      if (["issues", "pull", "blob", "tree", "wiki", "releases"].includes(repo)) {
+        continue;
+      }
+
+      const repoPath = `${owner}/${repo}`;
+      if (!links.includes(repoPath)) {
+        links.push(repoPath);
+      }
+    }
+  }
+
+  return links;
 }
 
 async function extractSkillFromRepo(
