@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
 import { crawlGitHubSkills } from "@/lib/github-crawler";
 
-// This endpoint can be called by:
-// 1. Vercel Cron Jobs (vercel.json)
-// 2. External cron services (e.g., cron-job.org)
-// 3. Manual trigger via /api/cron/crawl?secret=xxx
+// Vercel Cron Job - 每 6 小时自动抓取 GitHub Skills
+// Schedule: 0 */6 * * * (每天 0:00, 6:00, 12:00, 18:00 UTC)
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
+  // Vercel Cron 自动添加 CRON_SECRET header
+  // https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
 
-  // Verify cron secret (skip in development)
-  if (process.env.NODE_ENV === "production") {
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = request.headers.get("authorization");
-
-    // Support both query param and header auth
-    if (secret !== cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  // 生产环境验证 (Vercel Cron 会自动带上 Bearer token)
+  if (process.env.NODE_ENV === "production" && cronSecret) {
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
