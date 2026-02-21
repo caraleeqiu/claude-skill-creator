@@ -10,7 +10,7 @@ import {
   Hash, Layers, BookOpen, HelpCircle, Package
 } from "lucide-react";
 import type { Skill } from "@/types/skill";
-import { SKILL_CATEGORIES } from "@/types/skill";
+import { SKILL_CATEGORIES, USE_CASES } from "@/types/skill";
 
 // 热门搜索标签
 const HOT_TAGS = [
@@ -169,6 +169,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [platform, setPlatform] = useState<"all" | "claude" | "openclaw">("all");
+  const [usecase, setUsecase] = useState("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const [showOpenClawGuide, setShowOpenClawGuide] = useState(false);
@@ -209,6 +210,7 @@ export default function Home() {
       const params = new URLSearchParams();
       if (category !== "all") params.set("category", category);
       if (platform !== "all") params.set("platform", platform);
+      if (usecase !== "all") params.set("usecase", usecase);
       if (search) params.set("search", search);
       if (refresh) params.set("refresh", "true");
 
@@ -222,7 +224,7 @@ export default function Home() {
 
     setLoading(false);
     setRefreshing(false);
-  }, [category, platform, search]);
+  }, [category, platform, usecase, search]);
 
   useEffect(() => {
     fetchSkills();
@@ -403,10 +405,18 @@ export default function Home() {
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <Hash className="w-3 h-3" /> 热门:
             </span>
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="px-3 py-1 text-xs rounded-full bg-gray-800 text-white dark:bg-white dark:text-gray-900"
+              >
+                全部
+              </button>
+            )}
             {HOT_TAGS.map((tag) => (
               <button
                 key={tag}
-                onClick={() => setSearch(tag)}
+                onClick={() => setSearch(search === tag ? "" : tag)}
                 className={`px-3 py-1 text-xs rounded-full transition-all ${
                   search === tag
                     ? "bg-orange-500 text-white"
@@ -417,10 +427,57 @@ export default function Home() {
               </button>
             ))}
           </div>
+
+          {/* 场景搜索 - 根据用户意图推荐 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <Rocket className="w-3 h-3" /> 场景:
+            </span>
+            <button
+              onClick={() => setUsecase("all")}
+              className={`px-3 py-1 text-xs rounded-full transition-all ${
+                usecase === "all"
+                  ? "bg-gray-800 text-white dark:bg-white dark:text-gray-900"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              }`}
+            >
+              全部
+            </button>
+            {USE_CASES.map((uc) => {
+              const Icon = iconMap[uc.icon] || Rocket;
+              return (
+                <button
+                  key={uc.id}
+                  onClick={() => setUsecase(usecase === uc.id ? "all" : uc.id)}
+                  className={`px-3 py-1.5 text-xs rounded-full transition-all flex items-center gap-1.5 ${
+                    usecase === uc.id
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-orange-100 dark:hover:bg-orange-500/20"
+                  }`}
+                  title={uc.description}
+                >
+                  <Icon className="w-3 h-3" />
+                  {uc.name_cn}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Category Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-3 mb-8">
+          {/* 全部分类按钮 */}
+          <button
+            onClick={() => setCategory("all")}
+            className={`p-4 rounded-2xl border-2 transition-all ${
+              category === "all"
+                ? "bg-gradient-to-br from-gray-700 to-gray-900 border-transparent text-white shadow-lg shadow-gray-500/25"
+                : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-gray-300 hover:shadow-md"
+            }`}
+          >
+            <Box className="w-6 h-6 mx-auto mb-2" />
+            <p className="text-xs font-medium truncate">全部</p>
+          </button>
           {SKILL_CATEGORIES.map((cat) => {
             const Icon = iconMap[cat.icon] || Box;
             const isActive = category === cat.id;

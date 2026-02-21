@@ -34,3 +34,107 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
   { id: 'communication', name: 'Communication', name_cn: '通讯', icon: 'MessageSquare', count: 0 },
   { id: 'other', name: 'Other', name_cn: '其他', icon: 'Box', count: 0 },
 ];
+
+// 场景搜索 - 根据用户意图匹配 skills
+export interface UseCase {
+  id: string;
+  name: string;
+  name_cn: string;
+  description: string;
+  keywords: string[];  // 匹配关键词
+  categories: string[];  // 相关分类
+  icon: string;
+}
+
+export const USE_CASES: UseCase[] = [
+  {
+    id: "auto-deploy",
+    name: "Auto Deploy",
+    name_cn: "自动部署",
+    description: "CI/CD、Docker、云服务部署",
+    keywords: ["deploy", "部署", "ci", "cd", "docker", "kubernetes", "k8s", "vercel", "aws", "云"],
+    categories: ["automation", "dev-tools"],
+    icon: "Rocket",
+  },
+  {
+    id: "code-review",
+    name: "Code Review",
+    name_cn: "代码审查",
+    description: "PR Review、代码质量、安全扫描",
+    keywords: ["review", "审查", "pr", "pull request", "质量", "lint", "security", "安全"],
+    categories: ["dev-tools"],
+    icon: "Code",
+  },
+  {
+    id: "write-docs",
+    name: "Write Docs",
+    name_cn: "写文档",
+    description: "README、API 文档、技术文档",
+    keywords: ["doc", "文档", "readme", "api", "技术", "说明", "文案", "write"],
+    categories: ["content", "dev-tools"],
+    icon: "FileText",
+  },
+  {
+    id: "data-analysis",
+    name: "Data Analysis",
+    name_cn: "数据分析",
+    description: "Excel、CSV、数据可视化、报表",
+    keywords: ["data", "数据", "分析", "excel", "csv", "报表", "可视化", "chart", "统计"],
+    categories: ["data"],
+    icon: "Database",
+  },
+  {
+    id: "chat-bot",
+    name: "Chat Bot",
+    name_cn: "聊天机器人",
+    description: "多平台消息、自动回复、客服",
+    keywords: ["chat", "聊天", "bot", "机器人", "消息", "telegram", "discord", "slack", "微信"],
+    categories: ["communication"],
+    icon: "MessageSquare",
+  },
+  {
+    id: "git-workflow",
+    name: "Git Workflow",
+    name_cn: "Git 工作流",
+    description: "Commit、Branch、Merge、版本管理",
+    keywords: ["git", "commit", "branch", "merge", "版本", "version", "提交", "分支"],
+    categories: ["dev-tools"],
+    icon: "Code",
+  },
+  {
+    id: "api-dev",
+    name: "API Dev",
+    name_cn: "API 开发",
+    description: "REST、GraphQL、接口测试",
+    keywords: ["api", "rest", "graphql", "接口", "endpoint", "request", "postman"],
+    categories: ["dev-tools"],
+    icon: "Zap",
+  },
+  {
+    id: "content-creation",
+    name: "Content Creation",
+    name_cn: "内容创作",
+    description: "博客、社交媒体、营销文案",
+    keywords: ["content", "内容", "blog", "博客", "social", "社交", "marketing", "营销", "seo"],
+    categories: ["content"],
+    icon: "FileText",
+  },
+  {
+    id: "testing",
+    name: "Testing",
+    name_cn: "测试",
+    description: "单元测试、E2E、自动化测试",
+    keywords: ["test", "测试", "unit", "e2e", "cypress", "jest", "自动化"],
+    categories: ["dev-tools", "automation"],
+    icon: "Code",
+  },
+  {
+    id: "ai-agent",
+    name: "AI Agent",
+    name_cn: "AI 代理",
+    description: "多代理协作、AI 工作流",
+    keywords: ["agent", "代理", "ai", "llm", "gpt", "claude", "multi-agent", "协作"],
+    categories: ["automation", "dev-tools"],
+    icon: "Zap",
+  },
+];
