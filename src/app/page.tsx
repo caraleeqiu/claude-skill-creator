@@ -131,6 +131,7 @@ export default function Home() {
     const script = `mkdir -p ~/.claude/commands && git clone --depth 1 ${skill.repo_url} /tmp/${skill.name} && cp /tmp/${skill.name}/SKILL.md ~/.claude/commands/${skill.name}.md && rm -rf /tmp/${skill.name}`;
     await navigator.clipboard.writeText(script);
     setCopiedId(skill.id);
+    showToast("success", "已复制！在终端粘贴执行即可安装");
     setTimeout(() => setCopiedId(null), 2000);
   }
 
@@ -338,27 +339,35 @@ function SkillCard({
         ))}
       </div>
       <div className="flex items-center gap-2">
-        <button
-          onClick={onCopy}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm rounded-xl transition-all font-medium shadow-md shadow-orange-500/20"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4" />
-              已复制!
-            </>
-          ) : (
-            <>
-              <Download className="w-4 h-4" />
-              一键安装
-            </>
-          )}
-        </button>
+        <div className="flex-1 relative group/btn">
+          <button
+            onClick={onCopy}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm rounded-xl transition-all font-medium shadow-md shadow-orange-500/20"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4" />
+                已复制!
+              </>
+            ) : (
+              <>
+                <Terminal className="w-4 h-4" />
+                复制安装命令
+              </>
+            )}
+          </button>
+          {/* Tooltip */}
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover/btn:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+            复制后在终端粘贴执行
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+          </div>
+        </div>
         <a
           href={skill.repo_url}
           target="_blank"
           rel="noopener noreferrer"
           className="p-2.5 border-2 border-gray-100 dark:border-gray-800 rounded-xl hover:border-orange-200 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-all"
+          title="查看 GitHub 仓库"
         >
           <ExternalLink className="w-4 h-4" />
         </a>
