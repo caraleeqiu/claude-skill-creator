@@ -5,10 +5,54 @@ import {
   Search, Download, Star, ExternalLink, Copy, Check,
   Code, Zap, FileText, Rocket, Database, Palette, MessageSquare,
   Box, Sparkles, Upload, RefreshCw, X, Github, Terminal,
-  Shield, ShieldAlert, ShieldCheck, AlertTriangle, FileDown, LogOut
+  Shield, ShieldAlert, ShieldCheck, AlertTriangle, FileDown, LogOut,
+  CheckCircle, XCircle, Info
 } from "lucide-react";
 import type { Skill } from "@/types/skill";
 import { SKILL_CATEGORIES } from "@/types/skill";
+
+// Toast 通知组件
+interface ToastMessage {
+  id: number;
+  type: "success" | "error" | "info";
+  message: string;
+}
+
+function useToast() {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showToast = useCallback((type: ToastMessage["type"], message: string) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  }, []);
+
+  const ToastContainer = () => (
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg animate-slide-up ${
+            toast.type === "success"
+              ? "bg-green-500 text-white"
+              : toast.type === "error"
+              ? "bg-red-500 text-white"
+              : "bg-blue-500 text-white"
+          }`}
+        >
+          {toast.type === "success" && <CheckCircle className="w-5 h-5" />}
+          {toast.type === "error" && <XCircle className="w-5 h-5" />}
+          {toast.type === "info" && <Info className="w-5 h-5" />}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  return { showToast, ToastContainer };
+}
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Code, Zap, FileText, Rocket, Database, Palette, MessageSquare, Box,
@@ -30,21 +74,29 @@ export default function Home() {
   const [showCreator, setShowCreator] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [githubUser, setGithubUser] = useState<GithubUser | null>(null);
+  const { showToast, ToastContainer } = useToast();
 
-  // 检查 URL hash 中的 OAuth 回调
+  // 从 localStorage 读取 GitHub 登录状态
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const hash = window.location.hash;
-      if (hash.includes("token=")) {
-        const params = new URLSearchParams(hash.slice(1));
-        const token = params.get("token");
-        const login = params.get("user");
-        const avatar = params.get("avatar");
-        if (token && login) {
-          setGithubUser({ token, login, avatar: avatar || "" });
-          // 清除 URL hash
-          window.history.replaceState(null, "", window.location.pathname);
+      try {
+        const stored = localStorage.getItem("github_auth");
+        if (stored) {
+          const authData = JSON.parse(stored);
+          // 检查是否过期
+          if (authData.expiresAt && Date.now() < authData.expiresAt) {
+            setGithubUser({
+              token: authData.token,
+              login: authData.login,
+              avatar: authData.avatar || "",
+            });
+          } else {
+            // Token 已过期，清除
+            localStorage.removeItem("github_auth");
+          }
         }
+      } catch {
+        localStorage.removeItem("github_auth");
       }
     }
   }, []);
@@ -76,7 +128,7 @@ export default function Home() {
   }, [fetchSkills]);
 
   async function copyInstallScript(skill: Skill) {
-    const script = `mkdir -p ~/.claude/skills/${skill.name} && git clone --depth 1 ${skill.repo_url} ~/.claude/skills/${skill.name}`;
+    const script = `mkdir -p ~/.claude/commands && git clone --depth 1 ${skill.repo_url} /tmp/${skill.name} && cp /tmp/${skill.name}/SKILL.md ~/.claude/commands/${skill.name}.md && rm -rf /tmp/${skill.name}`;
     await navigator.clipboard.writeText(script);
     setCopiedId(skill.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -84,10 +136,14 @@ export default function Home() {
 
   function handleLogout() {
     setGithubUser(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("github_auth");
+    }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50/30 to-amber-50/50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <ToastContainer />
       {/* Header */}
       <header className="border-b border-orange-100 bg-white/80 backdrop-blur-md dark:bg-gray-950/80 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
@@ -108,7 +164,7 @@ export default function Home() {
               {githubUser ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl">
                   {githubUser.avatar && (
-                    <img src={githubUser.avatar} alt="" className="w-6 h-6 rounded-full" />
+                    <img src={githubUser.avatar} alt="" width={24} height={24} className="w-6 h-6 rounded-full" />
                   )}
                   <span className="text-sm font-medium">{githubUser.login}</span>
                   <button onClick={handleLogout} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
@@ -198,6 +254,7 @@ export default function Home() {
           <SkillCreator
             onClose={() => setShowCreator(false)}
             githubUser={githubUser}
+            showToast={showToast}
           />
         )}
 
@@ -310,12 +367,19 @@ function SkillCard({
   );
 }
 
+// 验证 GitHub Token 格式
+function isValidGitHubToken(token: string): boolean {
+  return /^(ghp_[a-zA-Z0-9]{36,}|github_pat_[a-zA-Z0-9]{22,}_[a-zA-Z0-9]{59,})$/.test(token);
+}
+
 function SkillCreator({
   onClose,
   githubUser,
+  showToast,
 }: {
   onClose: () => void;
   githubUser: GithubUser | null;
+  showToast: (type: "success" | "error" | "info", message: string) => void;
 }) {
   const [step, setStep] = useState<"input" | "preview" | "upload">("input");
   const [description, setDescription] = useState("");
@@ -362,7 +426,7 @@ function SkillCreator({
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        showToast("error", data.error);
       } else {
         setGenerated(data);
         setName(data.name);
@@ -371,7 +435,7 @@ function SkillCreator({
         setStep("preview");
       }
     } catch {
-      alert("生成失败，请重试");
+      showToast("error", "生成失败，请重试");
     }
     setGenerating(false);
   }
@@ -445,7 +509,7 @@ function SkillCreator({
         URL.revokeObjectURL(url);
       }
     } catch {
-      alert("下载失败");
+      showToast("error", "下载失败");
     }
   }
 
@@ -622,9 +686,10 @@ function SkillCreator({
               <div>
                 <label className="block text-sm font-medium mb-2">安装方式</label>
                 <div className="p-4 bg-gray-900 text-green-400 rounded-xl text-sm font-mono mb-4">
-                  <p className="text-gray-500 mb-2"># 本地安装</p>
-                  <p className="break-all">mkdir -p ~/.claude/skills/{generated.name}</p>
-                  <p className="text-gray-500 mt-3 mb-2"># 保存 SKILL.md 到该目录</p>
+                  <p className="text-gray-500 mb-2"># 方式1: 直接保存到 commands 目录</p>
+                  <p className="break-all">mkdir -p ~/.claude/commands</p>
+                  <p className="text-gray-500 mt-3 mb-2"># 将内容保存为 ~/.claude/commands/{generated.name}.md</p>
+                  <p className="text-gray-500 mt-3 mb-2"># 方式2: 使用 /{generated.name} 触发</p>
                 </div>
                 <div className="p-4 bg-orange-50 dark:bg-orange-500/10 rounded-xl">
                   <p className="text-sm font-medium text-orange-600 mb-2">分类: {generated.category}</p>
@@ -691,8 +756,8 @@ function SkillCreator({
                 </a>
                 <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-xl">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">安装命令:</p>
-                  <code className="text-sm font-mono text-orange-500">
-                    git clone {uploadResult.repoUrl} ~/.claude/skills/{generated.name}
+                  <code className="text-sm font-mono text-orange-500 break-all">
+                    curl -sL {uploadResult.repoUrl}/raw/main/SKILL.md -o ~/.claude/commands/{generated.name}.md
                   </code>
                 </div>
                 <button
@@ -707,7 +772,7 @@ function SkillCreator({
                 {/* 已登录 GitHub */}
                 {githubUser ? (
                   <div className="p-4 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl flex items-center gap-3">
-                    <img src={githubUser.avatar} alt="" className="w-10 h-10 rounded-full" />
+                    <img src={githubUser.avatar} alt="" width={40} height={40} className="w-10 h-10 rounded-full" />
                     <div>
                       <p className="font-medium text-green-600">已登录: {githubUser.login}</p>
                       <p className="text-sm text-green-500">将上传到你的 GitHub 账号</p>
@@ -734,10 +799,20 @@ function SkillCreator({
                       <input
                         type="password"
                         value={manualToken}
-                        onChange={(e) => setManualToken(e.target.value)}
-                        placeholder="ghp_xxxxxxxxxxxxx"
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-mono text-sm"
+                        onChange={(e) => {
+                          const value = e.target.value.trim();
+                          setManualToken(value);
+                        }}
+                        placeholder="ghp_xxxxxxxxxxxxx 或 github_pat_xxxxx"
+                        className={`w-full px-4 py-2 border rounded-lg bg-white dark:bg-gray-700 font-mono text-sm ${
+                          manualToken && !isValidGitHubToken(manualToken)
+                            ? "border-red-500 focus:ring-red-500"
+                            : "border-gray-300 dark:border-gray-600"
+                        }`}
                       />
+                      {manualToken && !isValidGitHubToken(manualToken) && (
+                        <p className="text-xs text-red-500 mt-1">Token 格式不正确，应以 ghp_ 或 github_pat_ 开头</p>
+                      )}
                       <a
                         href="https://github.com/settings/tokens/new?scopes=repo&description=Claude%20Skill%20Creator"
                         target="_blank"
@@ -770,7 +845,7 @@ function SkillCreator({
                   </button>
                   <button
                     onClick={handleUpload}
-                    disabled={!activeToken || uploading}
+                    disabled={!activeToken || (manualToken && !isValidGitHubToken(manualToken)) || uploading}
                     className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 disabled:from-gray-300 disabled:to-gray-400 text-white rounded-xl font-medium transition-all"
                   >
                     {uploading ? (

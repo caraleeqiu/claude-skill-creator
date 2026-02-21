@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       repoUrl: `https://github.com/${user.login}/${repoName}`,
-      installCommand: `git clone https://github.com/${user.login}/${repoName}.git ~/.claude/skills/${repoName}`,
+      installCommand: `curl -sL https://raw.githubusercontent.com/${user.login}/${repoName}/main/SKILL.md -o ~/.claude/commands/${repoName}.md`,
     });
   } catch (error) {
     console.error("GitHub upload error:", error);

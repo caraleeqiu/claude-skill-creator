@@ -86,22 +86,22 @@ export function generateSkillFromDescription(input: SkillInput): GeneratedSkill 
   const info = extractSkillInfo(input.description);
   const name = input.name || info.name || "my-skill";
 
-  // 生成 SKILL.md
-  const skillMd = `---
-name: ${name}
-description: ${input.description.slice(0, 200)}${input.description.length > 200 ? "..." : ""}
----
-
-# ${name}
+  // 生成 SKILL.md - 使用 Claude Code 推荐的格式
+  // Claude Code 的 slash command 是普通的 markdown 文件
+  const skillMd = `# ${name}
 
 ${input.description}
 
-## 触发条件 (When to Use)
+## 使用方法
+
+在 Claude Code 中输入 \`/${name}\` 即可触发此命令。
+
+## 触发条件
 
 当用户提到以下关键词或场景时自动激活：
 ${info.triggers.map(t => `- ${t}`).join("\n")}
 
-## 执行步骤 (Steps)
+## 执行步骤
 
 ${info.steps.length > 0
   ? info.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")
@@ -110,13 +110,11 @@ ${info.steps.length > 0
 3. 执行核心任务
 4. 验证结果并输出`}
 
-## 示例 (Examples)
+## 示例
 
-\`\`\`
-用户: [示例输入]
-Claude: [根据 skill 执行相应操作]
-结果: [预期输出]
-\`\`\`
+**输入**: [用户的请求]
+
+**输出**: [Claude 的响应]
 
 ## 注意事项
 
@@ -133,17 +131,17 @@ ${input.description}
 ## 安装
 
 \`\`\`bash
-# 方式 1: 直接克隆
-git clone https://github.com/YOUR_USERNAME/${name}.git ~/.claude/skills/${name}
+# 方式 1: 下载到本地
+curl -sL https://raw.githubusercontent.com/YOUR_USERNAME/${name}/main/SKILL.md -o ~/.claude/commands/${name}.md
 
 # 方式 2: 手动创建
-mkdir -p ~/.claude/skills/${name}
-# 将 SKILL.md 复制到该目录
+mkdir -p ~/.claude/commands
+# 将 SKILL.md 内容保存为 ~/.claude/commands/${name}.md
 \`\`\`
 
 ## 使用
 
-在 Claude Code 中使用 \`/${name}\` 或描述相关需求即可自动触发。
+在 Claude Code 中输入 \`/${name}\` 即可触发此 skill。
 
 ## 类别
 
@@ -172,39 +170,37 @@ MIT
 export function validateSkillMd(content: string): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  // 检查 frontmatter
-  if (!content.startsWith("---")) {
-    errors.push("缺少 YAML frontmatter (必须以 --- 开头)");
+  // 检查是否有标题
+  if (!content.startsWith("#")) {
+    errors.push("建议以 # 标题开头");
   }
 
-  const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!frontmatterMatch) {
-    errors.push("YAML frontmatter 格式不正确");
-  } else {
-    const frontmatter = frontmatterMatch[1];
-    if (!frontmatter.includes("name:")) {
-      errors.push("缺少 name 字段");
-    }
-    if (!frontmatter.includes("description:")) {
-      errors.push("缺少 description 字段");
+  // 从标题提取名称检查
+  const titleMatch = content.match(/^#\s+([^\n]+)/);
+  if (titleMatch) {
+    const title = titleMatch[1].trim().toLowerCase().replace(/\s+/g, "-");
+    if (title.includes("claude") || title.includes("anthropic")) {
+      errors.push("标题不应包含 'claude' 或 'anthropic' (商标保护)");
     }
   }
 
-  // 检查命名规则
-  const nameMatch = content.match(/name:\s*([^\n]+)/);
-  if (nameMatch) {
-    const name = nameMatch[1].trim();
-    if (!/^[a-z0-9-]+$/.test(name)) {
-      errors.push("name 必须是 kebab-case (小写字母、数字、连字符)");
-    }
-    if (name.includes("claude") || name.includes("anthropic")) {
-      errors.push("name 不能包含 'claude' 或 'anthropic'");
-    }
+  // 检查内容长度
+  if (content.length < 50) {
+    errors.push("内容过短，建议提供更详细的说明");
   }
 
-  // 检查是否包含 XML 标签
-  if (/<[a-z]+[^>]*>/i.test(content)) {
-    errors.push("不建议使用 XML 标签 (防止 prompt injection)");
+  if (content.length > 50000) {
+    errors.push("内容过长，建议控制在 50KB 以内");
+  }
+
+  // 检查是否包含危险的 XML 标签（prompt injection）
+  if (/<\/?(?:system|user|assistant)>/i.test(content)) {
+    errors.push("不能使用 <system>/<user>/<assistant> 标签 (防止 prompt injection)");
+  }
+
+  // 检查是否有执行步骤或说明
+  if (!content.includes("##") && content.length > 200) {
+    errors.push("建议使用 ## 添加章节以提高可读性");
   }
 
   return {

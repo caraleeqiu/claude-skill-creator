@@ -8,26 +8,26 @@ export function cn(...inputs: ClassValue[]) {
 export function generateInstallScript(skillName: string, repoUrl: string): string {
   return `#!/bin/bash
 # Install ${skillName} skill for Claude Code
-SKILL_DIR="$HOME/.claude/skills/${skillName}"
-mkdir -p "$SKILL_DIR"
-git clone --depth 1 ${repoUrl} /tmp/${skillName}-temp
-cp -r /tmp/${skillName}-temp/* "$SKILL_DIR/"
-rm -rf /tmp/${skillName}-temp
-echo "Skill '${skillName}' installed to $SKILL_DIR"
+COMMANDS_DIR="$HOME/.claude/commands"
+mkdir -p "$COMMANDS_DIR"
+
+# Download SKILL.md directly
+curl -sL "${repoUrl.replace('github.com', 'raw.githubusercontent.com').replace(/\/$/, '')}/main/SKILL.md" \
+  -o "$COMMANDS_DIR/${skillName}.md"
+
+echo "Skill '${skillName}' installed to $COMMANDS_DIR/${skillName}.md"
+echo "Use /${skillName} in Claude Code to trigger this skill"
 `
 }
 
 export function generateSkillTemplate(name: string, description: string): string {
-  return `---
-name: ${name}
-description: ${description}
----
+  return `# ${name}
 
-# ${name}
+${description}
 
 ## Usage
 
-[Describe how to use this skill]
+Use \`/${name}\` in Claude Code to trigger this skill.
 
 ## Steps
 
@@ -37,10 +37,8 @@ description: ${description}
 
 ## Examples
 
-\`\`\`
-User: [Example input]
-Action: [What the skill does]
-Result: [Expected output]
-\`\`\`
+**Input**: [Example user request]
+
+**Output**: [What Claude does]
 `
 }

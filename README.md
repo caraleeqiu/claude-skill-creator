@@ -13,9 +13,9 @@
 - 一键复制安装命令
 
 ### 2. AI 创建 Skill
-- 自然语言描述，AI 自动生成 SKILL.md
+- 自然语言描述，AI 自动生成 Skill
 - 实时预览和验证
-- 符合 Anthropic 官方规范
+- 符合 Claude Code 官方规范
 - 安全扫描（检测恶意代码）
 
 ### 3. 多种安装方式
@@ -24,7 +24,8 @@
 - GitHub OAuth 登录后直接上传到自己仓库
 
 ### 4. 安全保护
-- 自动扫描 SKILL.md 内容
+- 自动扫描 Skill 内容
+- 上下文感知的安全检测（减少误报）
 - 检测危险命令、凭证窃取、prompt 注入等
 - 风险等级提示
 
@@ -38,7 +39,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/caraleeqiu/claude-skill-creator.git
+git clone https://github.com/your-username/claude-skill-creator.git
 cd claude-skill-creator
 
 # 安装依赖
@@ -56,7 +57,7 @@ npm run dev
 
 ### 部署到 Vercel
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/caraleeqiu/claude-skill-creator)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/claude-skill-creator)
 
 ### 环境变量
 
@@ -90,12 +91,16 @@ npm run dev
 ## Skill 安装
 
 ```bash
-# 方式 1: Git Clone
-mkdir -p ~/.claude/skills/SKILL_NAME
-git clone https://github.com/AUTHOR/SKILL_NAME.git ~/.claude/skills/SKILL_NAME
+# 方式 1: 下载到本地
+curl -sL https://raw.githubusercontent.com/AUTHOR/SKILL_NAME/main/SKILL.md \
+  -o ~/.claude/commands/SKILL_NAME.md
 
-# 方式 2: 下载 ZIP 后解压到
-~/.claude/skills/SKILL_NAME/SKILL.md
+# 方式 2: 手动创建
+mkdir -p ~/.claude/commands
+# 将 Skill 内容保存为 ~/.claude/commands/skill-name.md
+
+# 使用
+# 在 Claude Code 中输入 /skill-name 即可触发
 ```
 
 ## 项目结构
@@ -129,6 +134,20 @@ src/
 - [GitHub Topics: claude-skills](https://github.com/topics/claude-skills)
 - [Anthropic Official Skills](https://github.com/anthropics/skills)
 - [Awesome Claude Skills](https://github.com/travisvn/awesome-claude-skills)
+
+## 更新日志
+
+### v0.2.0
+- 修复安装路径：`~/.claude/skills/` → `~/.claude/commands/`
+- 优化 OAuth Token 安全性（localStorage + 过期机制）
+- 添加 Token 格式验证
+- 改进安全扫描逻辑（上下文感知，减少误报）
+- 优化 Skill 生成格式
+- 添加 Toast 通知替代 alert
+- 修复 img 标签 CLS 问题
+
+### v0.1.0
+- 初始版本
 
 ## License
 
