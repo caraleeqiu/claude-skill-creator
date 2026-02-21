@@ -1,13 +1,27 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { Octokit } from "@octokit/rest";
 
 export async function POST(request: Request) {
   try {
-    const { token, repoName, skillMd, readme, description, isPrivate } = await request.json();
+    // 从 httpOnly cookie 获取 token
+    const cookieStore = await cookies();
+    const tokenCookie = cookieStore.get("github_token");
 
-    if (!token || !repoName || !skillMd) {
+    if (!tokenCookie) {
       return NextResponse.json(
-        { error: "缺少必要参数: token, repoName, skillMd" },
+        { error: "未登录，请先登录 GitHub" },
+        { status: 401 }
+      );
+    }
+
+    const token = tokenCookie.value;
+    const { repoName, skillMd, readme, description, isPrivate } =
+      await request.json();
+
+    if (!repoName || !skillMd) {
+      return NextResponse.json(
+        { error: "缺少必要参数: repoName, skillMd" },
         { status: 400 }
       );
     }
@@ -113,7 +127,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("GitHub upload error:", error);
     return NextResponse.json(
-      { error: `上传失败: ${error instanceof Error ? error.message : "未知错误"}` },
+      {
+        error: `上传失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      },
       { status: 500 }
     );
   }

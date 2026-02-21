@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-// GitHub OAuth 回调
+// GitHub OAuth 回调 - 使用 httpOnly cookie 存储 token
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -22,18 +23,21 @@ export async function GET(request: Request) {
 
   try {
     // 用 code 换取 access token
-    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-      }),
-    });
+    const tokenResponse = await fetch(
+      "https://github.com/login/oauth/access_token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+        }),
+      }
+    );
 
     const tokenData = await tokenResponse.json();
 
@@ -58,50 +62,35 @@ export async function GET(request: Request) {
 
     const userData = await userResponse.json();
 
-    // 使用安全的 HTML 页面来存储 token 到 localStorage，然后重定向
-    const secureHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>登录成功</title>
-  <style>
-    body { font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5; }
-    .card { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-    .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #f97316; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="spinner"></div>
-    <p>登录成功，正在跳转...</p>
-  </div>
-  <script>
-    try {
-      const authData = {
-        token: ${JSON.stringify(accessToken)},
-        login: ${JSON.stringify(userData.login || "")},
-        avatar: ${JSON.stringify(userData.avatar_url || "")},
-        expiresAt: Date.now() + 8 * 60 * 60 * 1000 // 8 小时过期
-      };
-      localStorage.setItem('github_auth', JSON.stringify(authData));
-      window.location.href = ${JSON.stringify(baseUrl)};
-    } catch (e) {
-      console.error('Failed to store auth:', e);
-      window.location.href = ${JSON.stringify(baseUrl + "/?error=storage_failed")};
-    }
-  </script>
-</body>
-</html>`;
+    // 创建用户信息对象 (不包含 token)
+    const userInfo = {
+      login: userData.login || "",
+      avatar: userData.avatar_url || "",
+    };
 
-    return new NextResponse(secureHtml, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-        "Pragma": "no-cache",
-      },
+    // 设置 httpOnly cookie 存储 token (服务端使用)
+    const cookieStore = await cookies();
+
+    // Token cookie - httpOnly, secure, sameSite
+    cookieStore.set("github_token", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 8 * 60 * 60, // 8 hours
+      path: "/",
     });
+
+    // User info cookie - 可被客户端读取用于显示
+    cookieStore.set("github_user", JSON.stringify(userInfo), {
+      httpOnly: false, // 允许客户端读取
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 8 * 60 * 60, // 8 hours
+      path: "/",
+    });
+
+    // 重定向回首页
+    return NextResponse.redirect(baseUrl);
   } catch (error) {
     console.error("OAuth error:", error);
     return NextResponse.redirect(`${baseUrl}/?error=oauth_failed`);
