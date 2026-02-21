@@ -58,7 +58,14 @@ function filterSkills(
   category: string | null,
   search: string | null
 ) {
-  let filtered = skills;
+  // 先去重（按 repo_url 或 name + author）
+  const seen = new Set<string>();
+  let filtered = skills.filter((s) => {
+    const key = s.repo_url || `${s.author}/${s.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   if (category && category !== "all") {
     filtered = filtered.filter((s) => s.category === category);
