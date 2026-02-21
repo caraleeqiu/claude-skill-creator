@@ -128,7 +128,28 @@ export default function Home() {
   }, [fetchSkills]);
 
   async function copyInstallScript(skill: Skill) {
-    const script = `mkdir -p ~/.claude/commands && git clone --depth 1 ${skill.repo_url} /tmp/${skill.name} && cp /tmp/${skill.name}/SKILL.md ~/.claude/commands/${skill.name}.md && rm -rf /tmp/${skill.name}`;
+    // Handle both regular repo URLs and subdirectory URLs
+    let script: string;
+
+    if (skill.skill_md_url) {
+      // Direct download from skill_md_url (handles subdirectories)
+      const rawUrl = skill.skill_md_url
+        .replace("github.com", "raw.githubusercontent.com")
+        .replace("/blob/", "/");
+      script = `mkdir -p ~/.claude/commands && curl -sL "${rawUrl}" -o ~/.claude/commands/${skill.name}.md`;
+    } else if (skill.repo_url.includes("/tree/")) {
+      // Subdirectory URL
+      const rawUrl = skill.repo_url
+        .replace("github.com", "raw.githubusercontent.com")
+        .replace("/tree/", "/") + "/SKILL.md";
+      script = `mkdir -p ~/.claude/commands && curl -sL "${rawUrl}" -o ~/.claude/commands/${skill.name}.md`;
+    } else {
+      // Regular repo URL
+      const rawUrl = skill.repo_url
+        .replace("github.com", "raw.githubusercontent.com") + "/main/SKILL.md";
+      script = `mkdir -p ~/.claude/commands && curl -sL "${rawUrl}" -o ~/.claude/commands/${skill.name}.md`;
+    }
+
     await navigator.clipboard.writeText(script);
     setCopiedId(skill.id);
     showToast("success", "已复制！在终端粘贴执行即可安装");

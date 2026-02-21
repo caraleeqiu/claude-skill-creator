@@ -7,35 +7,25 @@ const SKILL_TOPICS = [
   "claude-code-skill",
   "claude-code-skills",
   "agent-skills",
-  "claude-code",
 ];
 
-// Keywords for search queries
-const SEARCH_QUERIES = [
-  "claude skill",
-  "claude code skill",
-  "SKILL.md claude",
-  "agent skills claude",
-];
-
-// Known high-quality repos
-const SKILL_REPOS = [
-  "anthropics/skills",
-  "travisvn/awesome-claude-skills",
-  "alirezarezvani/claude-skills",
-  "daymade/claude-code-skills",
-  "ComposioHQ/awesome-claude-skills",
-  "mhattingpete/claude-skills-marketplace",
-  "netresearch/claude-code-marketplace",
-  "VoltAgent/awesome-agent-skills",
-  "libukai/awesome-agent-skills",
+// Known high-quality skill repositories (contains multiple skills in subdirectories)
+const SKILL_COLLECTIONS = [
+  { owner: "anthropics", repo: "skills", skillsPath: "skills" },
+  { owner: "vercel-labs", repo: "agent-skills", skillsPath: "skills" },
+  { owner: "vercel-labs", repo: "next-skills", skillsPath: "skills" },
+  { owner: "cloudflare", repo: "skills", skillsPath: "skills" },
+  { owner: "supabase", repo: "agent-skills", skillsPath: "skills" },
+  { owner: "huggingface", repo: "skills", skillsPath: "skills" },
+  { owner: "stripe", repo: "ai", skillsPath: "skills" },
+  { owner: "google-labs-code", repo: "stitch-skills", skillsPath: "skills" },
 ];
 
 // Awesome lists to parse for more skills
 const AWESOME_LISTS = [
+  "VoltAgent/awesome-agent-skills",
   "travisvn/awesome-claude-skills",
   "ComposioHQ/awesome-claude-skills",
-  "VoltAgent/awesome-agent-skills",
   "libukai/awesome-agent-skills",
 ];
 
@@ -66,104 +56,24 @@ export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
 
   console.log("Starting skill crawl...");
 
-  // 1. Crawl by topics
-  for (const topic of SKILL_TOPICS) {
-    const result = await withRateLimit(async () => {
-      const { data } = await octokit.search.repos({
-        q: `topic:${topic}`,
-        sort: "stars",
-        order: "desc",
-        per_page: 50,
-      });
-      return data;
-    });
-
-    if (result) {
-      for (const repo of result.items) {
-        if (!repo.owner || seen.has(repo.full_name)) continue;
-        seen.add(repo.full_name);
-
-        const skill = await extractSkillFromRepo(octokit, {
-          full_name: repo.full_name,
-          name: repo.name,
-          description: repo.description,
-          html_url: repo.html_url,
-          stargazers_count: repo.stargazers_count,
-          owner: { login: repo.owner.login },
-          created_at: repo.created_at ?? new Date().toISOString(),
-          updated_at: repo.updated_at ?? new Date().toISOString(),
-          topics: repo.topics,
-        });
-        if (skill) skills.push(skill);
-      }
-    }
+  // 1. Crawl known skill collections (repos with multiple skills in subdirectories)
+  for (const collection of SKILL_COLLECTIONS) {
+    console.log(`Crawling ${collection.owner}/${collection.repo}...`);
+    const collectionSkills = await crawlSkillCollection(
+      octokit,
+      collection.owner,
+      collection.repo,
+      collection.skillsPath,
+      seen
+    );
+    skills.push(...collectionSkills);
   }
 
-  // 2. Crawl by search queries
-  for (const query of SEARCH_QUERIES) {
-    const result = await withRateLimit(async () => {
-      const { data } = await octokit.search.repos({
-        q: query,
-        sort: "stars",
-        order: "desc",
-        per_page: 30,
-      });
-      return data;
-    });
-
-    if (result) {
-      for (const repo of result.items) {
-        if (!repo.owner || seen.has(repo.full_name)) continue;
-        seen.add(repo.full_name);
-
-        const skill = await extractSkillFromRepo(octokit, {
-          full_name: repo.full_name,
-          name: repo.name,
-          description: repo.description,
-          html_url: repo.html_url,
-          stargazers_count: repo.stargazers_count,
-          owner: { login: repo.owner.login },
-          created_at: repo.created_at ?? new Date().toISOString(),
-          updated_at: repo.updated_at ?? new Date().toISOString(),
-          topics: repo.topics,
-        });
-        if (skill) skills.push(skill);
-      }
-    }
-  }
-
-  // 3. Crawl known repos
-  for (const repoPath of SKILL_REPOS) {
-    if (seen.has(repoPath)) continue;
-
-    const result = await withRateLimit(async () => {
-      const [owner, repo] = repoPath.split("/");
-      const { data } = await octokit.repos.get({ owner, repo });
-      return data;
-    });
-
-    if (result) {
-      seen.add(repoPath);
-      const skill = await extractSkillFromRepo(octokit, {
-        full_name: result.full_name,
-        name: result.name,
-        description: result.description,
-        html_url: result.html_url,
-        stargazers_count: result.stargazers_count,
-        owner: { login: result.owner.login },
-        created_at: result.created_at ?? new Date().toISOString(),
-        updated_at: result.updated_at ?? new Date().toISOString(),
-        topics: result.topics,
-      });
-      if (skill) skills.push(skill);
-    }
-  }
-
-  // 4. Parse awesome lists for more skills
+  // 2. Parse awesome lists for skill links
   for (const listRepo of AWESOME_LISTS) {
+    console.log(`Parsing awesome list: ${listRepo}...`);
     const [owner, repo] = listRepo.split("/");
 
-    // Get README content
     const readmeContent = await withRateLimit(async () => {
       const { data } = await octokit.repos.getContent({
         owner,
@@ -177,162 +87,281 @@ export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
     });
 
     if (readmeContent) {
-      // Extract GitHub repo links from README
-      const repoLinks = extractGitHubLinks(readmeContent);
+      const skillLinks = extractSkillLinks(readmeContent);
 
-      for (const repoPath of repoLinks) {
-        if (seen.has(repoPath)) continue;
+      for (const link of skillLinks) {
+        const skillKey = `${link.owner}/${link.repo}/${link.path}`;
+        if (seen.has(skillKey)) continue;
+        seen.add(skillKey);
 
-        const [repoOwner, repoName] = repoPath.split("/");
-        const result = await withRateLimit(async () => {
-          const { data } = await octokit.repos.get({ owner: repoOwner, repo: repoName });
-          return data;
+        const skill = await fetchSkillFromPath(
+          octokit,
+          link.owner,
+          link.repo,
+          link.path,
+          link.name,
+          link.description
+        );
+        if (skill) skills.push(skill);
+      }
+    }
+  }
+
+  // 3. Crawl by topics (only repos with SKILL.md at root)
+  for (const topic of SKILL_TOPICS) {
+    const result = await withRateLimit(async () => {
+      const { data } = await octokit.search.repos({
+        q: `topic:${topic}`,
+        sort: "stars",
+        order: "desc",
+        per_page: 30,
+      });
+      return data;
+    });
+
+    if (result) {
+      for (const repo of result.items) {
+        if (!repo.owner) continue;
+        const key = `${repo.full_name}/SKILL.md`;
+        if (seen.has(key)) continue;
+
+        // Check if has SKILL.md at root
+        const hasSkillMd = await withRateLimit(async () => {
+          await octokit.repos.getContent({
+            owner: repo.owner!.login,
+            repo: repo.name,
+            path: "SKILL.md",
+          });
+          return true;
         });
 
-        if (result) {
-          seen.add(repoPath);
-          const skill = await extractSkillFromRepo(octokit, {
-            full_name: result.full_name,
-            name: result.name,
-            description: result.description,
-            html_url: result.html_url,
-            stargazers_count: result.stargazers_count,
-            owner: { login: result.owner.login },
-            created_at: result.created_at ?? new Date().toISOString(),
-            updated_at: result.updated_at ?? new Date().toISOString(),
-            topics: result.topics,
-          });
+        if (hasSkillMd) {
+          seen.add(key);
+          const skill = await fetchSkillFromPath(
+            octokit,
+            repo.owner.login,
+            repo.name,
+            "",
+            repo.name,
+            repo.description || ""
+          );
           if (skill) skills.push(skill);
         }
       }
     }
   }
 
-  // Sort by stars
-  skills.sort((a, b) => b.stars - a.stars);
+  // Sort by stars (if available) then by name
+  skills.sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
 
   console.log(`Crawl complete. Found ${skills.length} skills.`);
   return skills;
 }
 
-// Extract GitHub repository links from markdown content
-function extractGitHubLinks(content: string): string[] {
-  const links: string[] = [];
+// Crawl a repository that contains multiple skills in subdirectories
+async function crawlSkillCollection(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  skillsPath: string,
+  seen: Set<string>
+): Promise<Skill[]> {
+  const skills: Skill[] = [];
 
-  // Match GitHub repo URLs
-  const patterns = [
-    /https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)/g,
-    /\[([^\]]+)\]\(https?:\/\/github\.com\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_.-]+)[^)]*\)/g,
-  ];
+  // Get repo info for stars
+  const repoInfo = await withRateLimit(async () => {
+    const { data } = await octokit.repos.get({ owner, repo });
+    return data;
+  });
 
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(content)) !== null) {
-      let owner: string, repo: string;
+  // List subdirectories in skills folder
+  const contents = await withRateLimit(async () => {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: skillsPath,
+    });
+    return data;
+  });
 
-      if (match.length === 3) {
-        // Direct URL match
-        [, owner, repo] = match;
-      } else if (match.length === 4) {
-        // Markdown link match
-        [, , owner, repo] = match;
-      } else {
-        continue;
+  if (!contents || !Array.isArray(contents)) return skills;
+
+  for (const item of contents) {
+    if (item.type !== "dir") continue;
+
+    const skillKey = `${owner}/${repo}/${skillsPath}/${item.name}`;
+    if (seen.has(skillKey)) continue;
+    seen.add(skillKey);
+
+    // Check for SKILL.md in this subdirectory
+    const skillMdPath = `${skillsPath}/${item.name}/SKILL.md`;
+    const skillContent = await withRateLimit(async () => {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path: skillMdPath,
+      });
+      if ("content" in data) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
       }
+      return null;
+    });
 
-      // Clean up repo name
-      repo = repo.replace(/\.git$/, "").replace(/[#?].*$/, "");
+    if (skillContent) {
+      const description = extractDescriptionFromSkillMd(skillContent);
+      const category = categorizeSkill(item.name, description, []);
 
-      // Skip certain paths that aren't repos
-      if (["issues", "pull", "blob", "tree", "wiki", "releases"].includes(repo)) {
-        continue;
-      }
-
-      const repoPath = `${owner}/${repo}`;
-      if (!links.includes(repoPath)) {
-        links.push(repoPath);
-      }
+      skills.push({
+        id: `${owner}-${repo}-${item.name}`,
+        name: item.name,
+        description: description || `${item.name} skill by ${owner}`,
+        author: owner,
+        repo_url: `https://github.com/${owner}/${repo}/tree/main/${skillsPath}/${item.name}`,
+        stars: repoInfo?.stargazers_count || 0,
+        category,
+        tags: [owner, "official"],
+        skill_md_url: `https://github.com/${owner}/${repo}/blob/main/${skillMdPath}`,
+        created_at: repoInfo?.created_at || new Date().toISOString(),
+        updated_at: repoInfo?.updated_at || new Date().toISOString(),
+      });
     }
+  }
+
+  return skills;
+}
+
+// Extract skill links from awesome list README
+interface SkillLink {
+  owner: string;
+  repo: string;
+  path: string;
+  name: string;
+  description: string;
+}
+
+function extractSkillLinks(content: string): SkillLink[] {
+  const links: SkillLink[] = [];
+
+  // Match patterns like: **[owner/skill-name](https://github.com/owner/repo/tree/main/skills/skill-name)** - Description
+  // Or: - **[name](url)** - description
+  const pattern = /\*\*\[([^\]]+)\]\((https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/[^/]+\/([^)]+))\)\*\*\s*[-–]\s*([^\n]+)/g;
+
+  let match;
+  while ((match = pattern.exec(content)) !== null) {
+    const [, name, , owner, repo, path, description] = match;
+
+    // Skip non-skill paths
+    if (path.includes("commands") || path.includes("template")) continue;
+
+    links.push({
+      owner,
+      repo,
+      path: path.replace(/\/$/, ""),
+      name: name.split("/").pop() || name,
+      description: description.trim(),
+    });
+  }
+
+  // Also match simpler patterns
+  const simplePattern = /[-*]\s*\[([^\]]+)\]\((https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/[^/]+\/([^)]+))\)/g;
+
+  while ((match = simplePattern.exec(content)) !== null) {
+    const [, name, , owner, repo, path] = match;
+
+    // Skip if already added or non-skill paths
+    const key = `${owner}/${repo}/${path}`;
+    if (links.some(l => `${l.owner}/${l.repo}/${l.path}` === key)) continue;
+    if (path.includes("commands") || path.includes("template")) continue;
+
+    links.push({
+      owner,
+      repo,
+      path: path.replace(/\/$/, ""),
+      name: name.split("/").pop() || name,
+      description: "",
+    });
   }
 
   return links;
 }
 
-async function extractSkillFromRepo(
+// Fetch a skill from a specific path in a repo
+async function fetchSkillFromPath(
   octokit: Octokit,
-  repo: {
-    full_name: string;
-    name: string;
-    description: string | null;
-    html_url: string;
-    stargazers_count: number;
-    owner: { login: string };
-    created_at: string;
-    updated_at: string;
-    topics?: string[];
-  }
+  owner: string,
+  repo: string,
+  path: string,
+  name: string,
+  description: string
 ): Promise<Skill | null> {
-  // Check for SKILL.md in common locations
-  const paths = [
-    "SKILL.md",
-    "skills/SKILL.md",
-    ".claude/skills/SKILL.md",
-  ];
+  // Get repo info
+  const repoInfo = await withRateLimit(async () => {
+    const { data } = await octokit.repos.get({ owner, repo });
+    return data;
+  });
 
-  let skillMdUrl = "";
-  let hasSkillMd = false;
+  // Determine SKILL.md path
+  const skillMdPath = path ? `${path}/SKILL.md` : "SKILL.md";
 
-  for (const path of paths) {
-    const result = await withRateLimit(async () => {
-      await octokit.repos.getContent({
-        owner: repo.owner.login,
-        repo: repo.name,
-        path,
-      });
-      return true;
+  // Fetch SKILL.md content
+  const skillContent = await withRateLimit(async () => {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: skillMdPath,
     });
-
-    if (result) {
-      skillMdUrl = `${repo.html_url}/blob/main/${path}`;
-      hasSkillMd = true;
-      break;
+    if ("content" in data) {
+      return Buffer.from(data.content, "base64").toString("utf-8");
     }
-  }
+    return null;
+  });
 
-  // Even without SKILL.md, include repos with relevant topics
-  const hasRelevantTopic =
-    repo.topics?.some((t) =>
-      ["claude-skill", "claude-code", "agent-skills", "claude-skills"].includes(t)
-    ) || false;
+  if (!skillContent) return null;
 
-  if (!hasSkillMd && !hasRelevantTopic) {
-    // Check if it's a known repo or has skill-related name
-    const isKnownRepo = SKILL_REPOS.includes(repo.full_name);
-    const hasSkillName = /skill|claude|agent/i.test(repo.name);
-    if (!isKnownRepo && !hasSkillName) {
-      return null;
-    }
-  }
-
-  const category = categorizeSkill(
-    repo.name,
-    repo.description || "",
-    repo.topics || []
-  );
+  const extractedDesc = extractDescriptionFromSkillMd(skillContent);
+  const finalDescription = description || extractedDesc || `${name} skill`;
+  const category = categorizeSkill(name, finalDescription, []);
+  const skillName = path ? path.split("/").pop() || name : name;
 
   return {
-    id: repo.full_name.replace("/", "-"),
-    name: repo.name,
-    description: repo.description || "No description",
-    author: repo.owner.login,
-    repo_url: repo.html_url,
-    stars: repo.stargazers_count,
+    id: `${owner}-${repo}-${skillName}`.replace(/[^a-zA-Z0-9-]/g, "-"),
+    name: skillName,
+    description: finalDescription,
+    author: owner,
+    repo_url: path
+      ? `https://github.com/${owner}/${repo}/tree/main/${path}`
+      : `https://github.com/${owner}/${repo}`,
+    stars: repoInfo?.stargazers_count || 0,
     category,
-    tags: repo.topics || [],
-    skill_md_url: skillMdUrl,
-    created_at: repo.created_at,
-    updated_at: repo.updated_at,
+    tags: [owner],
+    skill_md_url: `https://github.com/${owner}/${repo}/blob/main/${skillMdPath}`,
+    created_at: repoInfo?.created_at || new Date().toISOString(),
+    updated_at: repoInfo?.updated_at || new Date().toISOString(),
   };
+}
+
+// Extract description from SKILL.md content
+function extractDescriptionFromSkillMd(content: string): string {
+  // Try to get from YAML frontmatter
+  const yamlMatch = content.match(/^---\n[\s\S]*?description:\s*([^\n]+)/);
+  if (yamlMatch) {
+    return yamlMatch[1].trim().replace(/^["']|["']$/g, "");
+  }
+
+  // Try to get first paragraph after title
+  const lines = content.split("\n");
+  let foundTitle = false;
+  for (const line of lines) {
+    if (line.startsWith("#")) {
+      foundTitle = true;
+      continue;
+    }
+    if (foundTitle && line.trim() && !line.startsWith("#") && !line.startsWith("-") && !line.startsWith("*")) {
+      return line.trim().slice(0, 200);
+    }
+  }
+
+  return "";
 }
 
 function categorizeSkill(
@@ -342,26 +371,25 @@ function categorizeSkill(
 ): string {
   const text = `${name} ${description} ${topics.join(" ")}`.toLowerCase();
 
-  // More comprehensive categorization
-  if (/git|code|dev|build|test|debug|lint|format|refactor|compile/.test(text)) {
+  if (/git|code|dev|build|test|debug|lint|format|refactor|compile|sdk|cli|upgrade/.test(text)) {
     return "dev-tools";
   }
-  if (/automat|workflow|pipeline|ci|cd|cron|schedule|batch/.test(text)) {
+  if (/automat|workflow|pipeline|ci|cd|cron|schedule|batch|deploy/.test(text)) {
     return "automation";
   }
-  if (/content|write|blog|article|seo|copy|draft|edit|translate/.test(text)) {
+  if (/content|write|blog|article|seo|copy|draft|edit|translate|doc|paper/.test(text)) {
     return "content";
   }
-  if (/product|task|project|todo|manage|plan|org|calendar/.test(text)) {
+  if (/product|task|project|todo|manage|plan|org|calendar|track/.test(text)) {
     return "productivity";
   }
-  if (/data|analys|csv|json|sql|excel|parse|transform|etl/.test(text)) {
+  if (/data|analys|csv|json|sql|excel|parse|transform|etl|postgres|database/.test(text)) {
     return "data";
   }
-  if (/design|ui|ux|figma|css|style|theme|visual|layout/.test(text)) {
+  if (/design|ui|ux|figma|css|style|theme|visual|layout|art|canvas|react|frontend/.test(text)) {
     return "design";
   }
-  if (/slack|discord|email|chat|message|notify|telegram|whatsapp/.test(text)) {
+  if (/slack|discord|email|chat|message|notify|telegram|whatsapp|gif/.test(text)) {
     return "communication";
   }
 
@@ -374,25 +402,43 @@ export async function fetchSkillContent(
 ): Promise<string | null> {
   const octokit = new Octokit({ auth: token });
 
-  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
-  if (!match) return null;
+  // Handle both repo URLs and tree URLs
+  const treeMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/[^/]+\/(.+)/);
+  const repoMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
 
-  const [, owner, repo] = match;
-
-  const result = await withRateLimit(async () => {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo: repo.replace(/\.git$/, ""),
-      path: "SKILL.md",
+  if (treeMatch) {
+    const [, owner, repo, path] = treeMatch;
+    const result = await withRateLimit(async () => {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path: `${path}/SKILL.md`,
+      });
+      if ("content" in data) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      }
+      return null;
     });
+    return result;
+  }
 
-    if ("content" in data) {
-      return Buffer.from(data.content, "base64").toString("utf-8");
-    }
-    return null;
-  });
+  if (repoMatch) {
+    const [, owner, repo] = repoMatch;
+    const result = await withRateLimit(async () => {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo: repo.replace(/\.git$/, ""),
+        path: "SKILL.md",
+      });
+      if ("content" in data) {
+        return Buffer.from(data.content, "base64").toString("utf-8");
+      }
+      return null;
+    });
+    return result;
+  }
 
-  return result;
+  return null;
 }
 
 // Get detailed skill info including README
@@ -406,18 +452,27 @@ export async function getSkillDetails(
 } | null> {
   const octokit = new Octokit({ auth: token });
 
-  const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
-  if (!match) return null;
+  // Handle tree URLs
+  const treeMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/[^/]+\/(.+)/);
+  const repoMatch = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
 
-  const [, owner, repoName] = match;
-  const repo = repoName.replace(/\.git$/, "");
+  let owner: string, repo: string, basePath = "";
+
+  if (treeMatch) {
+    [, owner, repo, basePath] = treeMatch;
+  } else if (repoMatch) {
+    [, owner, repo] = repoMatch;
+    repo = repo.replace(/\.git$/, "");
+  } else {
+    return null;
+  }
 
   try {
     // Get file list
     const { data: contents } = await octokit.repos.getContent({
       owner,
       repo,
-      path: "",
+      path: basePath,
     });
 
     const files = Array.isArray(contents)
@@ -438,7 +493,7 @@ export async function getSkillDetails(
         const { data } = await octokit.repos.getContent({
           owner,
           repo,
-          path: readmeFile,
+          path: basePath ? `${basePath}/${readmeFile}` : readmeFile,
         });
         if ("content" in data) {
           return Buffer.from(data.content, "base64").toString("utf-8");
