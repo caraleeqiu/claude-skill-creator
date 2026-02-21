@@ -22,23 +22,33 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
   const search = searchParams.get("search");
+  const platform = searchParams.get("platform"); // "claude" | "openclaw" | "all"
+  const source = searchParams.get("source"); // "github" | "twitter" | "reddit" | "all"
   const refresh = searchParams.get("refresh") === "true";
+  const includeSocial = searchParams.get("social") === "true";
 
   // Check cache first
   if (!refresh && cachedSkills && cachedSkills.length > 0 && Date.now() - cacheTime < CACHE_DURATION) {
-    return NextResponse.json(filterSkills(cachedSkills, category, search));
+    return NextResponse.json(filterSkills(cachedSkills, { category, search, platform, source }));
   }
 
   try {
     const token = process.env.GITHUB_TOKEN;
 
     // 设置 8 秒超时 (Vercel 免费版限制 10 秒)
-    const skills = await withTimeout(crawlGitHubSkills(token), 8000);
+    const skills = await withTimeout(
+      crawlGitHubSkills(token, {
+        includeClaude: true,
+        includeOpenClaw: true,
+        includeSocial,
+      }),
+      8000
+    );
 
     if (skills && skills.length > 0) {
       cachedSkills = skills;
       cacheTime = Date.now();
-      return NextResponse.json(filterSkills(skills, category, search));
+      return NextResponse.json(filterSkills(skills, { category, search, platform, source }));
     }
   } catch (error) {
     console.error("Error fetching skills (using defaults):", error);
@@ -50,14 +60,19 @@ export async function GET(request: Request) {
     cacheTime = Date.now();
   }
 
-  return NextResponse.json(filterSkills(cachedSkills, category, search));
+  return NextResponse.json(filterSkills(cachedSkills, { category, search, platform, source }));
 }
 
-function filterSkills(
-  skills: Skill[],
-  category: string | null,
-  search: string | null
-) {
+interface FilterOptions {
+  category: string | null;
+  search: string | null;
+  platform: string | null;
+  source: string | null;
+}
+
+function filterSkills(skills: Skill[], options: FilterOptions) {
+  const { category, search, platform, source } = options;
+
   // 先去重（按 repo_url 或 name + author）
   const seen = new Set<string>();
   let filtered = skills.filter((s) => {
@@ -67,17 +82,32 @@ function filterSkills(
     return true;
   });
 
+  // 按平台筛选
+  if (platform && platform !== "all") {
+    filtered = filtered.filter((s) =>
+      s.platform === platform || s.platform === "both"
+    );
+  }
+
+  // 按来源筛选
+  if (source && source !== "all") {
+    filtered = filtered.filter((s) => s.source === source);
+  }
+
+  // 按分类筛选
   if (category && category !== "all") {
     filtered = filtered.filter((s) => s.category === category);
   }
 
+  // 搜索
   if (search) {
     const q = search.toLowerCase();
     filtered = filtered.filter(
       (s) =>
         s.name.toLowerCase().includes(q) ||
         s.description.toLowerCase().includes(q) ||
-        s.tags.some((t) => t.toLowerCase().includes(q))
+        s.tags.some((t) => t.toLowerCase().includes(q)) ||
+        s.author.toLowerCase().includes(q)
     );
   }
 

@@ -1,8 +1,21 @@
 import type { Skill } from "@/types/skill";
 
+// 辅助函数：添加默认的 platform 和 source 字段
+type SkillWithoutDefaults = Omit<Skill, "platform" | "source">;
+
+function withDefaults(skills: SkillWithoutDefaults[], platform: Skill["platform"] = "claude", source: Skill["source"] = "github"): Skill[] {
+  return skills.map(skill => ({
+    ...skill,
+    platform,
+    source,
+  }));
+}
+
 // 默认 skills 数据 - 官方和高质量 skills
 // 只包含真正有 SKILL.md 的可安装 skills
-export const DEFAULT_SKILLS: Skill[] = [
+
+// Claude Code Skills (原有数据)
+const CLAUDE_SKILLS: SkillWithoutDefaults[] = [
   // ========== Anthropic Official Skills (16) ==========
   {
     id: "anthropics-docx",
@@ -2154,4 +2167,157 @@ export const DEFAULT_SKILLS: Skill[] = [
     created_at: "2024-01-01",
     updated_at: "2024-12-01",
   },
+];
+
+// ========== OpenClaw Extensions ==========
+const OPENCLAW_SKILLS: SkillWithoutDefaults[] = [
+  {
+    id: "openclaw-msteams",
+    name: "msteams",
+    description: "Microsoft Teams channel integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/extensions/msteams",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "teams", "microsoft", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/extensions/msteams",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-matrix",
+    name: "matrix",
+    description: "Matrix protocol integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/extensions/matrix",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "matrix", "decentralized", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/extensions/matrix",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-zalo",
+    name: "zalo",
+    description: "Zalo Official Account integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/extensions/zalo",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "zalo", "vietnam", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/extensions/zalo",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-zalouser",
+    name: "zalouser",
+    description: "Zalo User account integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/extensions/zalouser",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "zalo", "user", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/extensions/zalouser",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-voice-call",
+    name: "voice-call",
+    description: "Voice call integration for OpenClaw AI agents",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/extensions/voice-call",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "voice", "call", "audio"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/extensions/voice-call",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-telegram",
+    name: "telegram-channel",
+    description: "Telegram bot and channel integration",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/telegram",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "telegram", "bot", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/telegram",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-discord",
+    name: "discord-channel",
+    description: "Discord bot integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/discord",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "discord", "bot", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/discord",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-slack",
+    name: "slack-channel",
+    description: "Slack workspace integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/slack",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "slack", "workspace", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/slack",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-signal",
+    name: "signal-channel",
+    description: "Signal messenger integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/signal",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "signal", "secure", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/signal",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-imessage",
+    name: "imessage-channel",
+    description: "iMessage integration for OpenClaw on macOS",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/imessage",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "imessage", "apple", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/imessage",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+  {
+    id: "openclaw-whatsapp",
+    name: "whatsapp-channel",
+    description: "WhatsApp Web integration for OpenClaw",
+    author: "openclaw",
+    repo_url: "https://github.com/openclaw/openclaw/tree/main/src/web",
+    stars: 500,
+    category: "communication",
+    tags: ["openclaw", "whatsapp", "web", "channel"],
+    skill_md_url: "https://github.com/openclaw/openclaw/tree/main/src/web",
+    created_at: "2024-01-01",
+    updated_at: "2024-12-01",
+  },
+];
+
+// 合并所有 Skills 并导出
+export const DEFAULT_SKILLS: Skill[] = [
+  ...withDefaults(CLAUDE_SKILLS, "claude", "github"),
+  ...withDefaults(OPENCLAW_SKILLS, "openclaw", "github"),
 ];

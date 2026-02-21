@@ -10,6 +10,10 @@ export interface Skill {
   skill_md_url: string;
   created_at: string;
   updated_at: string;
+  // 新增字段
+  platform: "claude" | "openclaw" | "both";  // 支持的平台
+  source: "github" | "twitter" | "reddit" | "manual";  // 来源
+  source_url?: string;  // 原始来源 URL (社交媒体帖子等)
 }
 
 export interface SkillCategory {

@@ -1,32 +1,60 @@
 import { Octokit } from "@octokit/rest";
 import type { Skill } from "@/types/skill";
 
-// Topics to search
-const SKILL_TOPICS = [
+// ============ Claude Code Skills ============
+const CLAUDE_SKILL_TOPICS = [
   "claude-skills",
   "claude-code-skill",
   "claude-code-skills",
   "agent-skills",
 ];
 
-// Known high-quality skill repositories (contains multiple skills in subdirectories)
-const SKILL_COLLECTIONS = [
-  { owner: "anthropics", repo: "skills", skillsPath: "skills" },
-  { owner: "vercel-labs", repo: "agent-skills", skillsPath: "skills" },
-  { owner: "vercel-labs", repo: "next-skills", skillsPath: "skills" },
-  { owner: "cloudflare", repo: "skills", skillsPath: "skills" },
-  { owner: "supabase", repo: "agent-skills", skillsPath: "skills" },
-  { owner: "huggingface", repo: "skills", skillsPath: "skills" },
-  { owner: "stripe", repo: "ai", skillsPath: "skills" },
-  { owner: "google-labs-code", repo: "stitch-skills", skillsPath: "skills" },
+const CLAUDE_SKILL_COLLECTIONS = [
+  { owner: "anthropics", repo: "skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "vercel-labs", repo: "agent-skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "vercel-labs", repo: "next-skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "cloudflare", repo: "skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "supabase", repo: "agent-skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "huggingface", repo: "skills", skillsPath: "skills", platform: "claude" as const },
+  { owner: "stripe", repo: "ai", skillsPath: "skills", platform: "claude" as const },
+  { owner: "google-labs-code", repo: "stitch-skills", skillsPath: "skills", platform: "claude" as const },
 ];
 
-// Awesome lists to parse for more skills
-const AWESOME_LISTS = [
-  "VoltAgent/awesome-agent-skills",
-  "travisvn/awesome-claude-skills",
-  "ComposioHQ/awesome-claude-skills",
-  "libukai/awesome-agent-skills",
+// ============ OpenClaw Plugins ============
+const OPENCLAW_TOPICS = [
+  "openclaw",
+  "openclaw-plugin",
+  "openclaw-skill",
+  "openclaw-extension",
+];
+
+const OPENCLAW_COLLECTIONS = [
+  { owner: "openclaw", repo: "openclaw", skillsPath: "extensions", platform: "openclaw" as const },
+  // 可以添加更多 OpenClaw 相关仓库
+];
+
+// ============ Awesome Lists ============
+const AWESOME_LISTS: { repo: string; platform: "claude" | "openclaw" | "both" }[] = [
+  { repo: "VoltAgent/awesome-agent-skills", platform: "both" },
+  { repo: "travisvn/awesome-claude-skills", platform: "claude" },
+  { repo: "ComposioHQ/awesome-claude-skills", platform: "claude" },
+  { repo: "libukai/awesome-agent-skills", platform: "both" },
+];
+
+// ============ Social Media Search Terms ============
+const SOCIAL_SEARCH_TERMS = [
+  // Claude Code
+  "claude code skill",
+  "claude skill tutorial",
+  "claude code workflow",
+  "claude code automation",
+  // OpenClaw
+  "openclaw plugin",
+  "openclaw skill",
+  "openclaw tutorial",
+  // General AI Agent
+  "ai agent skill",
+  "llm automation",
 ];
 
 // Rate limit handler
@@ -49,30 +77,81 @@ async function withRateLimit<T>(fn: () => Promise<T>, retries = 3): Promise<T | 
   return null;
 }
 
-export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
+export interface CrawlOptions {
+  includeClaude?: boolean;
+  includeOpenClaw?: boolean;
+  includeSocial?: boolean;
+  token?: string;
+}
+
+export async function crawlGitHubSkills(token?: string, options?: CrawlOptions): Promise<Skill[]> {
   const octokit = new Octokit({ auth: token });
   const skills: Skill[] = [];
   const seen = new Set<string>();
 
-  console.log("Starting skill crawl...");
+  const opts = {
+    includeClaude: true,
+    includeOpenClaw: true,
+    includeSocial: false,  // 社交媒体默认关闭（需要额外 API）
+    ...options,
+  };
 
-  // 1. Crawl known skill collections (repos with multiple skills in subdirectories)
-  for (const collection of SKILL_COLLECTIONS) {
-    console.log(`Crawling ${collection.owner}/${collection.repo}...`);
-    const collectionSkills = await crawlSkillCollection(
-      octokit,
-      collection.owner,
-      collection.repo,
-      collection.skillsPath,
-      seen
-    );
-    skills.push(...collectionSkills);
+  console.log("Starting skill crawl...");
+  console.log(`Platforms: Claude=${opts.includeClaude}, OpenClaw=${opts.includeOpenClaw}, Social=${opts.includeSocial}`);
+
+  // ============ 1. Claude Code Skills ============
+  if (opts.includeClaude) {
+    // 1a. Crawl Claude skill collections
+    for (const collection of CLAUDE_SKILL_COLLECTIONS) {
+      console.log(`[Claude] Crawling ${collection.owner}/${collection.repo}...`);
+      const collectionSkills = await crawlSkillCollection(
+        octokit,
+        collection.owner,
+        collection.repo,
+        collection.skillsPath,
+        seen,
+        "claude"
+      );
+      skills.push(...collectionSkills);
+    }
+
+    // 1b. Crawl Claude topics
+    for (const topic of CLAUDE_SKILL_TOPICS) {
+      const topicSkills = await crawlByTopic(octokit, topic, seen, "claude");
+      skills.push(...topicSkills);
+    }
   }
 
-  // 2. Parse awesome lists for skill links
-  for (const listRepo of AWESOME_LISTS) {
-    console.log(`Parsing awesome list: ${listRepo}...`);
-    const [owner, repo] = listRepo.split("/");
+  // ============ 2. OpenClaw Plugins ============
+  if (opts.includeOpenClaw) {
+    // 2a. Crawl OpenClaw collections
+    for (const collection of OPENCLAW_COLLECTIONS) {
+      console.log(`[OpenClaw] Crawling ${collection.owner}/${collection.repo}...`);
+      const collectionSkills = await crawlOpenClawCollection(
+        octokit,
+        collection.owner,
+        collection.repo,
+        collection.skillsPath,
+        seen
+      );
+      skills.push(...collectionSkills);
+    }
+
+    // 2b. Crawl OpenClaw topics
+    for (const topic of OPENCLAW_TOPICS) {
+      const topicSkills = await crawlByTopic(octokit, topic, seen, "openclaw");
+      skills.push(...topicSkills);
+    }
+  }
+
+  // ============ 3. Awesome Lists ============
+  for (const list of AWESOME_LISTS) {
+    // 根据平台过滤
+    if (list.platform === "claude" && !opts.includeClaude) continue;
+    if (list.platform === "openclaw" && !opts.includeOpenClaw) continue;
+
+    console.log(`Parsing awesome list: ${list.repo}...`);
+    const [owner, repo] = list.repo.split("/");
 
     const readmeContent = await withRateLimit(async () => {
       const { data } = await octokit.repos.getContent({
@@ -100,32 +179,57 @@ export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
           link.repo,
           link.path,
           link.name,
-          link.description
+          link.description,
+          list.platform
         );
         if (skill) skills.push(skill);
       }
     }
   }
 
-  // 3. Crawl by topics (only repos with SKILL.md at root)
-  for (const topic of SKILL_TOPICS) {
-    const result = await withRateLimit(async () => {
-      const { data } = await octokit.search.repos({
-        q: `topic:${topic}`,
-        sort: "stars",
-        order: "desc",
-        per_page: 30,
-      });
-      return data;
+  // ============ 4. Social Media (X/Twitter, Reddit) ============
+  if (opts.includeSocial) {
+    console.log("Crawling social media sources...");
+    const socialSkills = await crawlSocialMedia();
+    skills.push(...socialSkills);
+  }
+
+  // Sort by stars (if available) then by name
+  skills.sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
+
+  console.log(`Crawl complete. Found ${skills.length} skills.`);
+  return skills;
+}
+
+// 按 topic 搜索
+async function crawlByTopic(
+  octokit: Octokit,
+  topic: string,
+  seen: Set<string>,
+  platform: "claude" | "openclaw"
+): Promise<Skill[]> {
+  const skills: Skill[] = [];
+
+  const result = await withRateLimit(async () => {
+    const { data } = await octokit.search.repos({
+      q: `topic:${topic}`,
+      sort: "stars",
+      order: "desc",
+      per_page: 30,
     });
+    return data;
+  });
 
-    if (result) {
-      for (const repo of result.items) {
-        if (!repo.owner) continue;
-        const key = `${repo.full_name}/SKILL.md`;
-        if (seen.has(key)) continue;
+  if (result) {
+    for (const repo of result.items) {
+      if (!repo.owner) continue;
 
-        // Check if has SKILL.md at root
+      // Claude: 检查 SKILL.md
+      // OpenClaw: 检查 package.json 或 skill.ts
+      const key = `${repo.full_name}`;
+      if (seen.has(key)) continue;
+
+      if (platform === "claude") {
         const hasSkillMd = await withRateLimit(async () => {
           await octokit.repos.getContent({
             owner: repo.owner!.login,
@@ -143,18 +247,272 @@ export async function crawlGitHubSkills(token?: string): Promise<Skill[]> {
             repo.name,
             "",
             repo.name,
-            repo.description || ""
+            repo.description || "",
+            "claude"
           );
           if (skill) skills.push(skill);
+        }
+      } else {
+        // OpenClaw: 检查是否是插件
+        const isOpenClawPlugin = await checkOpenClawPlugin(octokit, repo.owner.login, repo.name);
+        if (isOpenClawPlugin) {
+          seen.add(key);
+          skills.push({
+            id: `${repo.owner.login}-${repo.name}`.replace(/[^a-zA-Z0-9-]/g, "-"),
+            name: repo.name,
+            description: repo.description || `OpenClaw plugin by ${repo.owner.login}`,
+            author: repo.owner.login,
+            repo_url: `https://github.com/${repo.owner.login}/${repo.name}`,
+            stars: repo.stargazers_count || 0,
+            category: categorizeSkill(repo.name, repo.description || "", []),
+            tags: [repo.owner.login, "openclaw"],
+            skill_md_url: `https://github.com/${repo.owner.login}/${repo.name}`,
+            created_at: repo.created_at || new Date().toISOString(),
+            updated_at: repo.updated_at || new Date().toISOString(),
+            platform: "openclaw",
+            source: "github",
+          });
         }
       }
     }
   }
 
-  // Sort by stars (if available) then by name
-  skills.sort((a, b) => b.stars - a.stars || a.name.localeCompare(b.name));
+  return skills;
+}
 
-  console.log(`Crawl complete. Found ${skills.length} skills.`);
+// 检查是否是 OpenClaw 插件
+async function checkOpenClawPlugin(octokit: Octokit, owner: string, repo: string): Promise<boolean> {
+  // 检查 package.json 中是否有 openclaw 依赖
+  const pkgJson = await withRateLimit(async () => {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: "package.json",
+    });
+    if ("content" in data) {
+      return JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+    }
+    return null;
+  });
+
+  if (pkgJson) {
+    const deps = { ...pkgJson.dependencies, ...pkgJson.devDependencies, ...pkgJson.peerDependencies };
+    if (deps && (deps.openclaw || deps["openclaw/plugin-sdk"])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// 爬取 OpenClaw extensions 目录
+async function crawlOpenClawCollection(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  extensionsPath: string,
+  seen: Set<string>
+): Promise<Skill[]> {
+  const skills: Skill[] = [];
+
+  // Get repo info
+  const repoInfo = await withRateLimit(async () => {
+    const { data } = await octokit.repos.get({ owner, repo });
+    return data;
+  });
+
+  // List subdirectories
+  const contents = await withRateLimit(async () => {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: extensionsPath,
+    });
+    return data;
+  });
+
+  if (!contents || !Array.isArray(contents)) return skills;
+
+  for (const item of contents) {
+    if (item.type !== "dir") continue;
+
+    const skillKey = `${owner}/${repo}/${extensionsPath}/${item.name}`;
+    if (seen.has(skillKey)) continue;
+    seen.add(skillKey);
+
+    // 读取 package.json 获取描述
+    const pkgJson = await withRateLimit(async () => {
+      const { data } = await octokit.repos.getContent({
+        owner,
+        repo,
+        path: `${extensionsPath}/${item.name}/package.json`,
+      });
+      if ("content" in data) {
+        return JSON.parse(Buffer.from(data.content, "base64").toString("utf-8"));
+      }
+      return null;
+    });
+
+    const description = pkgJson?.description || `${item.name} OpenClaw extension`;
+    const category = categorizeSkill(item.name, description, []);
+
+    skills.push({
+      id: `${owner}-${repo}-${item.name}`,
+      name: item.name,
+      description,
+      author: owner,
+      repo_url: `https://github.com/${owner}/${repo}/tree/main/${extensionsPath}/${item.name}`,
+      stars: repoInfo?.stargazers_count || 0,
+      category,
+      tags: [owner, "openclaw", "extension"],
+      skill_md_url: `https://github.com/${owner}/${repo}/tree/main/${extensionsPath}/${item.name}`,
+      created_at: repoInfo?.created_at || new Date().toISOString(),
+      updated_at: repoInfo?.updated_at || new Date().toISOString(),
+      platform: "openclaw",
+      source: "github",
+    });
+  }
+
+  return skills;
+}
+
+// 社交媒体爬取 (X/Twitter, Reddit)
+async function crawlSocialMedia(): Promise<Skill[]> {
+  const skills: Skill[] = [];
+
+  // 注意：需要相应的 API key
+  // 这里提供框架，实际使用需要配置
+
+  // 1. X/Twitter 搜索
+  // 需要 Twitter API v2 Bearer Token
+  if (process.env.TWITTER_BEARER_TOKEN) {
+    try {
+      const twitterSkills = await searchTwitterSkills();
+      skills.push(...twitterSkills);
+    } catch (e) {
+      console.error("Twitter crawl failed:", e);
+    }
+  }
+
+  // 2. Reddit 搜索
+  // Reddit API 是公开的，可以直接搜索
+  try {
+    const redditSkills = await searchRedditSkills();
+    skills.push(...redditSkills);
+  } catch (e) {
+    console.error("Reddit crawl failed:", e);
+  }
+
+  return skills;
+}
+
+// Twitter/X 搜索
+async function searchTwitterSkills(): Promise<Skill[]> {
+  const skills: Skill[] = [];
+  const bearerToken = process.env.TWITTER_BEARER_TOKEN;
+  if (!bearerToken) return skills;
+
+  for (const query of SOCIAL_SEARCH_TERMS.slice(0, 3)) {
+    try {
+      const response = await fetch(
+        `https://api.twitter.com/2/tweets/search/recent?query=${encodeURIComponent(query)}&max_results=10&tweet.fields=created_at,author_id,public_metrics`,
+        {
+          headers: {
+            Authorization: `Bearer ${bearerToken}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data) {
+          for (const tweet of data.data) {
+            // 检查是否包含 GitHub 链接
+            const githubMatch = tweet.text.match(/github\.com\/([^/\s]+)\/([^/\s]+)/);
+            if (githubMatch) {
+              skills.push({
+                id: `twitter-${tweet.id}`,
+                name: `${githubMatch[2]}`,
+                description: tweet.text.slice(0, 200),
+                author: `@${tweet.author_id}`,
+                repo_url: `https://github.com/${githubMatch[1]}/${githubMatch[2]}`,
+                stars: tweet.public_metrics?.like_count || 0,
+                category: "other",
+                tags: ["twitter", "community"],
+                skill_md_url: `https://twitter.com/i/web/status/${tweet.id}`,
+                created_at: tweet.created_at,
+                updated_at: tweet.created_at,
+                platform: "both",
+                source: "twitter",
+                source_url: `https://twitter.com/i/web/status/${tweet.id}`,
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Twitter search failed for "${query}":`, e);
+    }
+  }
+
+  return skills;
+}
+
+// Reddit 搜索
+async function searchRedditSkills(): Promise<Skill[]> {
+  const skills: Skill[] = [];
+
+  // 搜索相关 subreddits
+  const subreddits = ["ClaudeAI", "LocalLLaMA", "artificial", "MachineLearning"];
+
+  for (const subreddit of subreddits) {
+    for (const query of SOCIAL_SEARCH_TERMS.slice(0, 2)) {
+      try {
+        const response = await fetch(
+          `https://www.reddit.com/r/${subreddit}/search.json?q=${encodeURIComponent(query)}&restrict_sr=1&limit=5&sort=top&t=month`,
+          {
+            headers: {
+              "User-Agent": "ClaudeSkillCreator/1.0",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.children) {
+            for (const post of data.data.children) {
+              const postData = post.data;
+              // 检查是否包含 GitHub 链接
+              const text = `${postData.title} ${postData.selftext || ""}`;
+              const githubMatch = text.match(/github\.com\/([^/\s]+)\/([^/\s)]+)/);
+
+              if (githubMatch) {
+                skills.push({
+                  id: `reddit-${postData.id}`,
+                  name: githubMatch[2].replace(/[^\w-]/g, ""),
+                  description: postData.title.slice(0, 200),
+                  author: postData.author,
+                  repo_url: `https://github.com/${githubMatch[1]}/${githubMatch[2]}`,
+                  stars: postData.score || 0,
+                  category: "other",
+                  tags: ["reddit", subreddit, "community"],
+                  skill_md_url: `https://reddit.com${postData.permalink}`,
+                  created_at: new Date(postData.created_utc * 1000).toISOString(),
+                  updated_at: new Date(postData.created_utc * 1000).toISOString(),
+                  platform: "both",
+                  source: "reddit",
+                  source_url: `https://reddit.com${postData.permalink}`,
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`Reddit search failed for r/${subreddit}:`, e);
+      }
+    }
+  }
+
   return skills;
 }
 
@@ -164,7 +522,8 @@ async function crawlSkillCollection(
   owner: string,
   repo: string,
   skillsPath: string,
-  seen: Set<string>
+  seen: Set<string>,
+  platform: "claude" | "openclaw" | "both" = "claude"
 ): Promise<Skill[]> {
   const skills: Skill[] = [];
 
@@ -223,6 +582,8 @@ async function crawlSkillCollection(
         skill_md_url: `https://github.com/${owner}/${repo}/blob/main/${skillMdPath}`,
         created_at: repoInfo?.created_at || new Date().toISOString(),
         updated_at: repoInfo?.updated_at || new Date().toISOString(),
+        platform,
+        source: "github",
       });
     }
   }
@@ -292,7 +653,8 @@ async function fetchSkillFromPath(
   repo: string,
   path: string,
   name: string,
-  description: string
+  description: string,
+  platform: "claude" | "openclaw" | "both" = "claude"
 ): Promise<Skill | null> {
   // Get repo info
   const repoInfo = await withRateLimit(async () => {
@@ -337,6 +699,8 @@ async function fetchSkillFromPath(
     skill_md_url: `https://github.com/${owner}/${repo}/blob/main/${skillMdPath}`,
     created_at: repoInfo?.created_at || new Date().toISOString(),
     updated_at: repoInfo?.updated_at || new Date().toISOString(),
+    platform,
+    source: "github",
   };
 }
 
