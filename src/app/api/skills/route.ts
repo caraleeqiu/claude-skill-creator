@@ -3,11 +3,20 @@ import { crawlGitHubSkills } from "@/lib/github-crawler";
 import { DEFAULT_SKILLS } from "@/lib/default-skills";
 import type { Skill } from "@/types/skill";
 import { USE_CASES } from "@/types/skill";
+import { CONFIG } from "@/constants/config";
+import crypto from "crypto";
 
-// Cache skills for 1 hour
+// 服务端内存缓存 (serverless 函数热实例复用)
 let cachedSkills: Skill[] | null = null;
 let cacheTime = 0;
-const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+let cacheETag: string | null = null;
+
+// 生成 ETag
+function generateETag(skills: Skill[]): string {
+  const hash = crypto.createHash("md5");
+  hash.update(JSON.stringify(skills.map((s) => s.repo_url || s.name)));
+  return `"${hash.digest("hex").slice(0, 16)}"`;
+}
 
 // 带超时的 Promise
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -29,9 +38,30 @@ export async function GET(request: Request) {
   const refresh = searchParams.get("refresh") === "true";
   const includeSocial = searchParams.get("social") === "true";
 
-  // Check cache first
-  if (!refresh && cachedSkills && cachedSkills.length > 0 && Date.now() - cacheTime < CACHE_DURATION) {
-    return NextResponse.json(filterSkills(cachedSkills, { category, search, platform, source, usecase }));
+  // HTTP 缓存头
+  const cacheHeaders = {
+    "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+    Vary: "Accept-Encoding",
+  };
+
+  // 检查 If-None-Match (ETag 条件请求)
+  const ifNoneMatch = request.headers.get("If-None-Match");
+  if (!refresh && cacheETag && ifNoneMatch === cacheETag) {
+    return new Response(null, { status: 304, headers: cacheHeaders });
+  }
+
+  // 检查内存缓存
+  const cacheValid =
+    !refresh &&
+    cachedSkills &&
+    cachedSkills.length > 0 &&
+    Date.now() - cacheTime < CONFIG.CACHE_DURATION_MS;
+
+  if (cacheValid) {
+    const filtered = filterSkills(cachedSkills!, { category, search, platform, source, usecase });
+    return NextResponse.json(filtered, {
+      headers: { ...cacheHeaders, ETag: cacheETag || "" },
+    });
   }
 
   try {
@@ -50,7 +80,12 @@ export async function GET(request: Request) {
     if (skills && skills.length > 0) {
       cachedSkills = skills;
       cacheTime = Date.now();
-      return NextResponse.json(filterSkills(skills, { category, search, platform, source, usecase }));
+      cacheETag = generateETag(skills);
+
+      const filtered = filterSkills(skills, { category, search, platform, source, usecase });
+      return NextResponse.json(filtered, {
+        headers: { ...cacheHeaders, ETag: cacheETag },
+      });
     }
   } catch (error) {
     console.error("Error fetching skills (using defaults):", error);
@@ -60,9 +95,13 @@ export async function GET(request: Request) {
   if (!cachedSkills || cachedSkills.length === 0) {
     cachedSkills = DEFAULT_SKILLS;
     cacheTime = Date.now();
+    cacheETag = generateETag(DEFAULT_SKILLS);
   }
 
-  return NextResponse.json(filterSkills(cachedSkills, { category, search, platform, source, usecase }));
+  const filtered = filterSkills(cachedSkills, { category, search, platform, source, usecase });
+  return NextResponse.json(filtered, {
+    headers: { ...cacheHeaders, ETag: cacheETag || "" },
+  });
 }
 
 interface FilterOptions {
