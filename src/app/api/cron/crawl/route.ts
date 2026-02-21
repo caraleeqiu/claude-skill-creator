@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { crawlGitHubSkills } from "@/lib/github-crawler";
 
-// Vercel Cron Job - 每 6 小时自动抓取 GitHub Skills
-// Schedule: 0 */6 * * * (每天 0:00, 6:00, 12:00, 18:00 UTC)
+// Vercel Cron Job - 每天自动抓取 GitHub Skills
+// Schedule: 0 8 * * * (每天 08:00 UTC = 16:00 北京时间)
 
 export async function GET(request: Request) {
   // Vercel Cron 自动添加 CRON_SECRET header
